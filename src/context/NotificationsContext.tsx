@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { Notification, mockNotifications } from '../data/notifications';
+import { Notification } from '../types';
+import { mockNotifications } from '../data/notifications';
 
 interface NotificationsContextValue {
   notifications: Notification[];

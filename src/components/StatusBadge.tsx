@@ -1,5 +1,5 @@
 import { Clock, CheckCircle2, XCircle } from 'lucide-react';
-import { PostStatus } from '../data/moderation';
+import type { PostStatus } from '../types';
 
 interface StatusBadgeProps {
   status: PostStatus;

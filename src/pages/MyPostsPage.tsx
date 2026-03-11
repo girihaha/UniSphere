@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { File as FileEdit, ChevronRight, Calendar, MapPin, ArrowLeft, Clock, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { useModeration } from '../context/ModerationContext';
-import { PendingPost } from '../data/moderation';
+import { ModerationItem as PendingPost } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import TagBadge from '../components/TagBadge';
 
@@ -12,7 +12,7 @@ function PostDetailSheet({
   post: PendingPost;
   onClose: () => void;
 }) {
-  const item = post.feedItem;
+  const item = post.post;
   return (
     <div
       className="fixed inset-0 z-50 overflow-y-auto"
@@ -123,7 +123,7 @@ function PostDetailSheet({
 }
 
 function MyPostCard({ post, onView }: { post: PendingPost; onView: () => void }) {
-  const item = post.feedItem;
+  const item = post.post;
   return (
     <button
       onClick={onView}

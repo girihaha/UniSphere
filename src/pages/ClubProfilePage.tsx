@@ -3,7 +3,7 @@ import {
   ArrowLeft, Heart, MessageCircle, Bookmark,
   Users, Calendar, Tag, Share2, MoreHorizontal, Link,
 } from 'lucide-react';
-import { Club } from '../data/clubs';
+import type { Club } from '../types';
 import Button from '../components/Button';
 import TagBadge from '../components/TagBadge';
 import CommentsSheet from '../components/CommentsSheet';

@@ -6,7 +6,7 @@ import {
   BellOff,
 } from 'lucide-react';
 import { useNotifications } from '../context/NotificationsContext';
-import { Notification, NotificationType } from '../data/notifications';
+import type { Notification, NotificationType } from '../types';
 import Avatar from '../components/Avatar';
 
 type FilterTab = 'all' | 'unread' | 'connections' | 'posts';

@@ -4,7 +4,7 @@ import {
   ChevronDown, Check, ArrowLeft, Calendar, Clock,
   MapPin, Users, X, Plus, Link,
 } from 'lucide-react';
-import { FeedItem } from '../data/feed';
+import type { Post as FeedItem } from '../types';
 import TagBadge from '../components/TagBadge';
 import Avatar from '../components/Avatar';
 import Button from '../components/Button';

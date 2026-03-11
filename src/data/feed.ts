@@ -1,33 +1,5 @@
-export type TagVariant = 'blue' | 'violet' | 'emerald' | 'amber' | 'rose' | 'cyan';
-
-export interface EventDetails {
-  date: string;
-  time: string;
-  location: string;
-  seats: number | null;
-  registerLabel: string;
-}
-
-export interface FeedItem {
-  id: number;
-  type: 'news' | 'clubs' | 'students';
-  author: string;
-  authorRole: string;
-  avatar?: string;
-  authorName: string;
-  time: string;
-  category: string;
-  categoryTag: TagVariant;
-  title: string;
-  summary: string;
-  fullContent: string[];
-  image: string;
-  eventDetails?: EventDetails;
-  likes: number;
-  comments: number;
-  saved: boolean;
-  liked: boolean;
-}
+export type { TagVariant, EventDetails } from '../types';
+export type { Post as FeedItem } from '../types';
 
 export const feedItems: FeedItem[] = [
   {

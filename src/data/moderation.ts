@@ -1,31 +1,45 @@
-import { FeedItem, TagVariant } from './feed';
+import { TagVariant } from '../types';
 
-export type PostStatus = 'pending' | 'approved' | 'rejected';
-export type ApprovalStep =
-  | 'club_verification'
-  | 'club_admin_approval'
-  | 'journalism_approval'
-  | 'super_admin_approval'
-  | 'published';
+export type { PostStatus, ApprovalStep, WorkflowStep } from '../types';
 
-export interface WorkflowStep {
-  id: ApprovalStep;
-  label: string;
-  completed: boolean;
-  current: boolean;
-}
-
-export interface PendingPost {
+interface PendingPost {
   id: number;
-  feedItem: FeedItem;
-  status: PostStatus;
+  feedItem: {
+    id: number;
+    type: 'news' | 'clubs' | 'students';
+    author: string;
+    authorRole: string;
+    avatar?: string;
+    authorName: string;
+    time: string;
+    category: string;
+    categoryTag: TagVariant;
+    title: string;
+    summary: string;
+    fullContent: string[];
+    image: string;
+    eventDetails?: {
+      date: string;
+      time: string;
+      location: string;
+      seats: number | null;
+      registerLabel: string;
+    };
+    likes: number;
+    comments: number;
+    saved: boolean;
+    liked: boolean;
+  };
+  status: 'pending' | 'approved' | 'rejected';
   submittedAt: string;
   submittedBy: string;
   submittedByRole: string;
   rejectionReason?: string;
-  workflow: WorkflowStep[];
-  currentStep: ApprovalStep;
+  workflow: import('../types').WorkflowStep[];
+  currentStep: import('../types').ApprovalStep;
 }
+
+export type { PendingPost };
 
 function clubWorkflow(step: ApprovalStep): WorkflowStep[] {
   const steps: ApprovalStep[] = ['club_verification', 'club_admin_approval', 'super_admin_approval', 'published'];

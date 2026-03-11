@@ -1,12 +1,28 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { PendingPost, mockPendingPosts, buildWorkflow } from '../data/moderation';
-import { FeedItem } from '../data/feed';
+import { ModerationItem, Post } from '../types';
+import { mockPendingPosts, buildWorkflow } from '../data/moderation';
 import { useFeed } from './FeedContext';
 
+export type PendingPost = ModerationItem;
+
+function toPendingPost(p: (typeof mockPendingPosts)[0]): ModerationItem {
+  return {
+    id: p.id,
+    post: p.feedItem as Post,
+    status: p.status,
+    submittedAt: p.submittedAt,
+    submittedBy: p.submittedBy,
+    submittedByRole: p.submittedByRole,
+    rejectionReason: p.rejectionReason,
+    workflow: p.workflow,
+    currentStep: p.currentStep,
+  };
+}
+
 interface ModerationContextValue {
-  pendingPosts: PendingPost[];
-  myPosts: PendingPost[];
-  submitForReview: (item: FeedItem, authorName: string, authorRole: string) => void;
+  pendingPosts: ModerationItem[];
+  myPosts: ModerationItem[];
+  submitForReview: (item: Post, authorName: string, authorRole: string) => void;
   approvePost: (id: number) => void;
   rejectPost: (id: number, reason?: string) => void;
 }
@@ -17,20 +33,22 @@ let nextModerationId = 200;
 
 export function ModerationProvider({ children }: { children: ReactNode }) {
   const { addPost } = useFeed();
-  const [pendingPosts, setPendingPosts] = useState<PendingPost[]>(mockPendingPosts);
-  const [myPosts, setMyPosts] = useState<PendingPost[]>([]);
+  const [pendingPosts, setPendingPosts] = useState<ModerationItem[]>(
+    mockPendingPosts.map(toPendingPost)
+  );
+  const [myPosts, setMyPosts] = useState<ModerationItem[]>([]);
 
-  const submitForReview = (item: FeedItem, authorName: string, authorRole: string) => {
+  const submitForReview = (item: Post, authorName: string, authorRole: string) => {
     const firstStep =
       item.type === 'clubs'
-        ? 'club_verification' as const
+        ? ('club_verification' as const)
         : item.type === 'news'
-        ? 'journalism_approval' as const
-        : 'super_admin_approval' as const;
+        ? ('journalism_approval' as const)
+        : ('super_admin_approval' as const);
 
-    const post: PendingPost = {
+    const modItem: ModerationItem = {
       id: nextModerationId++,
-      feedItem: { ...item, id: nextModerationId },
+      post: { ...item, id: nextModerationId },
       status: 'pending',
       submittedAt: 'Just now',
       submittedBy: authorName,
@@ -39,12 +57,12 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
       currentStep: firstStep,
     };
 
-    setPendingPosts((prev) => [post, ...prev]);
-    setMyPosts((prev) => [post, ...prev]);
+    setPendingPosts((prev) => [modItem, ...prev]);
+    setMyPosts((prev) => [modItem, ...prev]);
   };
 
   const approvePost = (id: number) => {
-    let approved: PendingPost | undefined;
+    let approved: ModerationItem | undefined;
     setPendingPosts((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p;
@@ -56,7 +74,7 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
       prev.map((p) => (p.id === id ? { ...p, status: 'approved' } : p))
     );
     if (approved) {
-      addPost({ ...approved.feedItem, time: 'Just now' });
+      addPost({ ...approved.post, time: 'Just now' });
     }
   };
 

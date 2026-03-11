@@ -1,7 +1,7 @@
 import { Heart, MessageCircle, Bookmark, Calendar, Clock, MapPin } from 'lucide-react';
 import TagBadge from './TagBadge';
 import Avatar from './Avatar';
-import { FeedItem } from '../data/feed';
+import type { Post as FeedItem } from '../types';
 
 export default function PostPreviewCard({ item }: { item: FeedItem }) {
   return (

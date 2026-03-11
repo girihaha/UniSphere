@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { Mail, Lock, Eye, EyeOff, User, Hash, ChevronDown, ArrowLeft, Loader2, AlertCircle, GraduationCap, Users } from 'lucide-react';
-import { useAuth, SignupData, UserRole } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
+import type { SignupPayload as SignupData, UserRole } from '../types';
 import { UnisphereInline } from '../components/UnisphereLogo';
 
 interface SignupPageProps {

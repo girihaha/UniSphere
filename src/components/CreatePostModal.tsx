@@ -9,7 +9,7 @@ import PostPreviewCard from './PostPreviewCard';
 import { generateId } from '../context/FeedContext';
 import { useAuth } from '../context/AuthContext';
 import { useModeration } from '../context/ModerationContext';
-import { FeedItem, TagVariant } from '../data/feed';
+import type { Post as FeedItem, TagVariant } from '../types';
 
 type PostType = 'clubs' | 'students' | 'news';
 

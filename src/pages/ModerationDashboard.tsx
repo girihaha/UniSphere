@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useModeration } from '../context/ModerationContext';
 import { useAuth } from '../context/AuthContext';
-import { PendingPost, PostStatus, WorkflowStep } from '../data/moderation';
+import { ModerationItem as PendingPost, WorkflowStep } from '../types';
 import StatusBadge from '../components/StatusBadge';
 import Avatar from '../components/Avatar';
 import TagBadge from '../components/TagBadge';
@@ -130,7 +130,7 @@ function PostDetailView({
   onReject: (reason: string) => void;
 }) {
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const item = post.feedItem;
+  const item = post.post;
   const isPending = post.status === 'pending';
 
   return (
@@ -300,7 +300,7 @@ function PendingPostCard({
   onApprove: () => void;
   onReject: () => void;
 }) {
-  const item = post.feedItem;
+  const item = post.post;
   const TypeIcon = TYPE_ICONS[item.type];
 
   return (

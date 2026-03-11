@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { TrendingUp, Sparkles, Users, ChevronRight, Search } from 'lucide-react';
 import { ClubCardSkeleton } from '../components/Skeleton';
-import { clubs, categories, Club } from '../data/clubs';
+import { clubs, categories } from '../data/clubs';
+import type { Club } from '../types';
 import TagBadge from '../components/TagBadge';
 import Button from '../components/Button';
 import ClubProfilePage from './ClubProfilePage';

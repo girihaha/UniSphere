@@ -1,9 +1,13 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { feedItems, FeedItem, TagVariant } from '../data/feed';
+import { Post, TagVariant } from '../types';
+import { feedItems } from '../data/feed';
+
+export type FeedItem = Post;
 
 interface FeedContextValue {
-  items: FeedItem[];
-  addPost: (post: FeedItem) => void;
+  items: Post[];
+  addPost: (post: Post) => void;
+  setItems: (items: Post[]) => void;
 }
 
 const FeedContext = createContext<FeedContextValue | null>(null);
@@ -11,14 +15,18 @@ const FeedContext = createContext<FeedContextValue | null>(null);
 let nextId = feedItems.length + 1;
 
 export function FeedProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<FeedItem[]>(feedItems);
+  const [items, setItemsState] = useState<Post[]>(feedItems as Post[]);
 
-  const addPost = (post: FeedItem) => {
-    setItems((prev) => [post, ...prev]);
+  const addPost = (post: Post) => {
+    setItemsState((prev) => [post, ...prev]);
+  };
+
+  const setItems = (newItems: Post[]) => {
+    setItemsState(newItems);
   };
 
   return (
-    <FeedContext.Provider value={{ items, addPost }}>
+    <FeedContext.Provider value={{ items, addPost, setItems }}>
       {children}
     </FeedContext.Provider>
   );

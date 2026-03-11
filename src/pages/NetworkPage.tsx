@@ -14,9 +14,8 @@ import {
   connections as allConnections,
   connectionRequests as allRequests,
   networkNotes,
-  Connection,
-  ConnectionRequest,
 } from '../data/network';
+import type { Connection, ConnectionRequest } from '../types';
 
 const QR_PATTERN = [0, 1, 2, 3, 4, 5, 6, 7, 13, 14, 20, 21, 24, 27, 28, 31, 34, 35, 41, 42, 43, 44, 45, 46, 47, 48];
 
