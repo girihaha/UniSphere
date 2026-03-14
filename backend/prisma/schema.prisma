@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id
+  name      String
+  email     String   @unique
+  password  String
+  branch    String
+  year      Int
+  role      String   @default("student")
+  avatarUrl String?
+  bio       String?
+  posts     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  socialLinks        SocialLink[]
+  authoredPosts      Post[]             @relation("PostAuthor")
+  postLikes          PostLike[]
+  postSaves          PostSave[]
+  postComments       PostComment[]
+  clubAdmins         ClubAdmin[]
+  clubFollowers      ClubFollower[]
+  sentRequests       ConnectionRequest[] @relation("RequestSender")
+  receivedRequests   ConnectionRequest[] @relation("RequestReceiver")
+  networkNotes       NetworkNote[]
+  notificationTarget Notification[]      @relation("NotificationTarget")
+}
+
+model SocialLink {
+  id     Int    @id @default(autoincrement())
+  userId String
+  type   String
+  handle String
+  url    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Club {
+  id          Int      @id @default(autoincrement())
+  name        String
+  username    String   @unique
+  description String
+  category    String
+  avatar      String?
+  coverImage  String?
+  members     Int      @default(0)
+  followers   Int      @default(0)
+  verified    Boolean  @default(false)
+  status      String   @default("active")
+  isOfficial  Boolean  @default(false)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  tags              ClubTag[]
+  admins            ClubAdmin[]
+  followerRecords   ClubFollower[]
+  posts             Post[]
+}
+
+model ClubTag {
+  id     Int    @id @default(autoincrement())
+  clubId  Int
+  value   String
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+}
+
+model ClubAdmin {
+  id     Int    @id @default(autoincrement())
+  clubId  Int
+  userId  String
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, userId])
+}
+
+model ClubFollower {
+  id     Int    @id @default(autoincrement())
+  clubId  Int
+  userId  String
+
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, userId])
+}
+
+model Post {
+  id              Int      @id @default(autoincrement())
+  title           String
+  content         String
+  summary         String?
+  type            String
+  kind            String
+  authorType      String
+  authorId        String
+  authorName      String
+  authorRole      String
+  author          String
+  userAvatar      String?
+  avatar          String?
+  image           String?
+  clubId          Int?
+  clubName        String?
+  clubAvatar      String?
+  eventDate       String?
+  eventTime       String?
+  eventLocation   String?
+  registerLink    String?
+  status          String
+  submittedAt     String
+  clubReviewedBy  String?
+  clubReviewedAt  String?
+  adminReviewedBy String?
+  adminReviewedAt String?
+  rejectionReason String?
+  createdAt       DateTime @default(now())
+
+  club     Club?          @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  authorUser User         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  likes    PostLike[]
+  saves    PostSave[]
+  comments PostComment[]
+}
+
+model PostLike {
+  id     Int    @id @default(autoincrement())
+  postId  Int
+  userId  String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model PostSave {
+  id     Int    @id @default(autoincrement())
+  postId  Int
+  userId  String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model PostComment {
+  id           Int      @id @default(autoincrement())
+  postId        Int
+  authorId      String
+  authorName    String
+  authorAvatar  String?
+  text          String
+  createdAt     DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model ConnectionRequest {
+  id         Int      @id @default(autoincrement())
+  fromUserId String
+  toUserId   String
+  message    String?
+  createdAt  DateTime @default(now())
+
+  fromUser User @relation("RequestSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("RequestReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUserId, toUserId])
+}
+
+model NetworkConnection {
+  id        Int      @id @default(autoincrement())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userAId, userBId])
+}
+
+model NetworkNote {
+  id        Int      @id @default(autoincrement())
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  type        String
+  message     String
+  actorId     String
+  actorName   String
+  actorRole   String?
+  read        Boolean  @default(false)
+  timestamp   String   @default("Just now")
+  timestampMs BigInt
+  actionState String?
+  postId      Int?
+  postTitle   String?
+  createdAt   DateTime @default(now())
+
+  user User @relation("NotificationTarget", fields: [userId], references: [id], onDelete: Cascade)
+}
