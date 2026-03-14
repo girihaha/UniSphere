@@ -1,12 +1,12 @@
 export type UserRole = 'student' | 'club_admin' | 'super_admin';
 
 export interface User {
-  id?: string;
+  id: string;
   name: string;
   email: string;
   regNumber: string;
   branch: string;
-  degree?: string;
+  degree: string;
   year: string;
   cgpa?: string;
   bio?: string;
@@ -34,35 +34,80 @@ export interface Achievement {
   bgTo: string;
 }
 
-export type TagVariant = 'blue' | 'violet' | 'emerald' | 'amber' | 'rose' | 'cyan' | 'default';
+export type TagVariant =
+  | 'blue'
+  | 'violet'
+  | 'emerald'
+  | 'amber'
+  | 'rose'
+  | 'cyan'
+  | 'default';
 
 export interface EventDetails {
-  date: string;
-  time: string;
-  location: string;
-  seats: number | null;
-  registerLabel: string;
+  date?: string;
+  time?: string;
+  location?: string;
+  seats?: number | null;
+  registerLabel?: string;
+  registerLink?: string;
 }
+
+export type PostType = 'news' | 'clubs' | 'students';
+
+export type PostStatus =
+  | 'pending_club_review'
+  | 'pending_admin_review'
+  | 'approved'
+  | 'rejected';
+
+export type PostAuthorType = 'user' | 'club';
+
+export type PostKind = 'post' | 'announcement' | 'event';
 
 export interface Post {
   id: number;
-  type: 'news' | 'clubs' | 'students';
+
+  type: PostType;
+  kind?: PostKind;
+  authorType?: PostAuthorType;
+
   author: string;
+  authorId?: string;
   authorRole: string;
   avatar?: string;
   authorName: string;
+
+  userAvatar?: string;
+  clubName?: string;
+  clubAvatar?: string;
+
   time: string;
+
   category: string;
   categoryTag: TagVariant;
+
   title: string;
   summary: string;
   fullContent: string[];
+  content?: string;
   image: string;
-  eventDetails?: EventDetails;
+
+  eventDetails?: EventDetails | null;
+
   likes: number;
   comments: number;
   saved: boolean;
   liked: boolean;
+
+  clubId?: number;
+
+  status?: PostStatus;
+  submittedAt?: string;
+  clubReviewedBy?: string;
+  clubReviewedAt?: string;
+  adminReviewedBy?: string;
+  adminReviewedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface Comment {
@@ -101,10 +146,21 @@ export interface Club {
   logoImage: string;
   recommended: boolean;
   posts: ClubPost[];
+
+  username?: string;
+  avatar?: string;
+  coverImage?: string;
+  followers?: number;
+  verified?: boolean;
+  status?: string;
+  isOfficial?: boolean;
+  adminUserIds?: string[];
+  isFollowing?: boolean;
+  tags?: string[];
 }
 
 export interface Connection {
-  id: number;
+  id: string;
   name: string;
   branch: string;
   degree: string;
@@ -119,7 +175,7 @@ export interface Connection {
 }
 
 export interface ConnectionRequest {
-  id: number;
+  id: string;
   name: string;
   branch: string;
   degree: string;
@@ -130,9 +186,20 @@ export interface ConnectionRequest {
   time: string;
 }
 
+export interface DiscoverUser {
+  id: string;
+  name: string;
+  branch: string;
+  degree: string;
+  year: string;
+  mutual: number;
+  avatar?: string;
+  requestSent: boolean;
+}
+
 export interface NetworkNote {
-  id: number;
-  authorId: number;
+  id: string;
+  authorId: string;
   authorName: string;
   authorBranch: string;
   avatar?: string;
@@ -171,14 +238,11 @@ export interface Notification {
   actionState?: 'pending' | 'accepted' | 'declined';
 }
 
-export type PostStatus = 'pending' | 'approved' | 'rejected';
-
 export type ApprovalStep =
-  | 'club_verification'
-  | 'club_admin_approval'
-  | 'journalism_approval'
-  | 'super_admin_approval'
-  | 'published';
+  | 'club_review'
+  | 'admin_review'
+  | 'published'
+  | 'rejected';
 
 export interface WorkflowStep {
   id: ApprovalStep;
@@ -210,14 +274,18 @@ export interface Poster {
 }
 
 export interface CreatePostPayload {
-  type: 'news' | 'clubs' | 'students';
+  type: PostType;
+  kind?: PostKind;
+  postAs?: 'personal' | 'club';
   title: string;
-  summary: string;
-  fullContent: string[];
-  image: string;
-  category: string;
-  categoryTag: TagVariant;
-  eventDetails?: EventDetails;
+  summary?: string;
+  content: string;
+  imageFile?: File | null;
+  clubId?: number;
+  eventDate?: string;
+  eventTime?: string;
+  eventLocation?: string;
+  registerLink?: string;
 }
 
 export interface LoginPayload {
@@ -251,5 +319,4 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   limit: number;
-  hasMore: boolean;
 }

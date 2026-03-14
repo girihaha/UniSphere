@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
 import type { PostStatus } from '../types';
 
 interface StatusBadgeProps {
@@ -6,13 +6,29 @@ interface StatusBadgeProps {
   size?: 'sm' | 'md';
 }
 
-const config: Record<PostStatus, { label: string; color: string; bg: string; border: string; Icon: typeof Clock }> = {
-  pending: {
-    label: 'Pending Review',
+const config: Record<
+  PostStatus,
+  {
+    label: string;
+    color: string;
+    bg: string;
+    border: string;
+    Icon: typeof Clock;
+  }
+> = {
+  pending_club_review: {
+    label: 'Club Review',
     color: '#fbbf24',
     bg: 'rgba(251,191,36,0.1)',
     border: 'rgba(251,191,36,0.25)',
     Icon: Clock,
+  },
+  pending_admin_review: {
+    label: 'Admin Review',
+    color: '#818cf8',
+    bg: 'rgba(129,140,248,0.1)',
+    border: 'rgba(129,140,248,0.25)',
+    Icon: ShieldCheck,
   },
   approved: {
     label: 'Approved',

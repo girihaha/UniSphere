@@ -1,11 +1,15 @@
 import { useState, useMemo, useEffect } from 'react';
 import { TrendingUp, Sparkles, Users, ChevronRight, Search } from 'lucide-react';
 import { ClubCardSkeleton } from '../components/Skeleton';
-import { clubs, categories } from '../data/clubs';
-import type { Club } from '../types';
 import TagBadge from '../components/TagBadge';
 import Button from '../components/Button';
 import ClubProfilePage from './ClubProfilePage';
+import {
+  getClubs,
+  followClub,
+  unfollowClub,
+  categories,
+} from '../services/clubService';
 
 function SectionHeader({
   title,
@@ -32,42 +36,163 @@ function SectionHeader({
   );
 }
 
-function ClubLogo({ club, size = 'md' }: { club: Club; size?: 'sm' | 'md' | 'lg' }) {
+function ClubLogo({ club, size = 'md' }: { club: any; size?: 'sm' | 'md' | 'lg' }) {
   const dims = {
     sm: 'w-10 h-10 rounded-xl',
     md: 'w-[52px] h-[52px] rounded-2xl',
     lg: 'w-16 h-16 rounded-2xl',
   };
+
+  const fallbackColor =
+    club.category === 'Technology'
+      ? 'from-indigo-500 to-violet-500'
+      : club.category === 'Design'
+      ? 'from-pink-500 to-rose-500'
+      : club.category === 'Entrepreneurship'
+      ? 'from-emerald-500 to-teal-500'
+      : 'from-slate-500 to-slate-700';
+
   return (
     <div
-      className={`${dims[size]} bg-gradient-to-br ${club.color} flex-shrink-0 relative overflow-hidden shadow-glass-sm`}
+      className={`${dims[size]} bg-gradient-to-br ${club.color || fallbackColor} flex-shrink-0 relative overflow-hidden shadow-glass-sm`}
     >
-      <img
-        src={club.logoImage}
-        alt={club.name}
-        className="w-full h-full object-cover opacity-50 mix-blend-overlay"
-      />
+      {(club.logoImage || club.avatar) && (
+        <img
+          src={club.logoImage || club.avatar}
+          alt={club.name}
+          className="w-full h-full object-cover opacity-50 mix-blend-overlay"
+        />
+      )}
     </div>
   );
+}
+
+function normalizeClub(rawClub: any): any {
+  const categoryTag =
+    rawClub.category === 'Technology'
+      ? 'blue'
+      : rawClub.category === 'Design'
+      ? 'violet'
+      : rawClub.category === 'Entrepreneurship'
+      ? 'emerald'
+      : 'blue';
+
+  const color =
+    rawClub.category === 'Technology'
+      ? 'from-indigo-500 to-violet-500'
+      : rawClub.category === 'Design'
+      ? 'from-pink-500 to-rose-500'
+      : rawClub.category === 'Entrepreneurship'
+      ? 'from-emerald-500 to-teal-500'
+      : 'from-slate-500 to-slate-700';
+
+  return {
+    ...rawClub,
+    logoImage: rawClub.avatar || '',
+    heroImage: rawClub.coverImage || rawClub.avatar || '',
+    categoryTag,
+    color,
+    tagline: rawClub.username || rawClub.description || '',
+    recommended: rawClub.followers > 300,
+    founded: rawClub.founded || '2024',
+    type: rawClub.type || rawClub.category || 'Club',
+    posts: rawClub.posts || [],
+    isFollowing: !!rawClub.isFollowing,
+  };
 }
 
 export default function ClubsPage() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [followed, setFollowed] = useState<Record<number, boolean>>(() =>
-    Object.fromEntries(clubs.map((c) => [c.id, false]))
-  );
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [clubs, setClubs] = useState<any[]>([]);
+  const [selectedClub, setSelectedClub] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [togglingClubId, setTogglingClubId] = useState<number | null>(null);
+
+  const loadClubsData = async () => {
+    setLoading(true);
+    try {
+      const clubsData = await getClubs();
+      const normalized = (clubsData || []).map(normalizeClub);
+      setClubs(normalized);
+
+      if (selectedClub) {
+        const updatedSelected = normalized.find((c) => c.id === selectedClub.id) || null;
+        setSelectedClub(updatedSelected);
+      }
+    } catch (error) {
+      console.error('Failed to load clubs:', error);
+      setClubs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(t);
+    loadClubsData();
   }, []);
 
-  const toggleFollow = (id: number) => setFollowed((f) => ({ ...f, [id]: !f[id] }));
+  const updateClubLocally = (clubId: number, isFollowing: boolean) => {
+    setClubs((prev) =>
+      prev.map((club) =>
+        club.id === clubId
+          ? {
+              ...club,
+              isFollowing,
+            }
+          : club
+      )
+    );
 
-  const recommended = useMemo(() => clubs.filter((c) => c.recommended), []);
+    setSelectedClub((prev: any) =>
+      prev && prev.id === clubId
+        ? {
+            ...prev,
+            isFollowing,
+          }
+        : prev
+    );
+  };
+
+  const handleToggleFollow = async (clubId: number) => {
+    if (togglingClubId === clubId) return;
+
+    const currentClub = clubs.find((c) => c.id === clubId) || selectedClub;
+    if (!currentClub) return;
+
+    const nextFollowing = !currentClub.isFollowing;
+    setTogglingClubId(clubId);
+
+    try {
+      if (nextFollowing) {
+        const result = await followClub(clubId);
+        if (result.error) {
+          console.error(result.error);
+          setTogglingClubId(null);
+          return;
+        }
+      } else {
+        const result = await unfollowClub(clubId);
+        if (result.error) {
+          console.error(result.error);
+          setTogglingClubId(null);
+          return;
+        }
+      }
+
+      updateClubLocally(clubId, nextFollowing);
+
+      setTimeout(() => {
+        loadClubsData();
+      }, 150);
+    } catch (error) {
+      console.error('Failed to toggle follow:', error);
+    } finally {
+      setTogglingClubId(null);
+    }
+  };
+
+  const recommended = useMemo(() => clubs.filter((c) => c.recommended), [clubs]);
 
   const filtered = useMemo(
     () =>
@@ -81,15 +206,15 @@ export default function ClubsPage() {
         const matchCat = activeCategory === 'All' || c.category === activeCategory;
         return matchSearch && matchCat;
       }),
-    [search, activeCategory]
+    [clubs, search, activeCategory]
   );
 
   if (selectedClub) {
     return (
       <ClubProfilePage
         club={selectedClub}
-        followed={followed[selectedClub.id]}
-        onToggleFollow={() => toggleFollow(selectedClub.id)}
+        followed={!!selectedClub.isFollowing}
+        onToggleFollow={() => handleToggleFollow(selectedClub.id)}
         onBack={() => setSelectedClub(null)}
       />
     );
@@ -103,7 +228,9 @@ export default function ClubsPage() {
         <div className="px-5 pt-16 pb-4">
           <div className="h-8 w-20 shimmer rounded-xl mb-6" />
           <div className="grid grid-cols-1 gap-4">
-            {[1, 2, 3].map((i) => <ClubCardSkeleton key={i} />)}
+            {[1, 2, 3].map((i) => (
+              <ClubCardSkeleton key={i} />
+            ))}
           </div>
         </div>
       </div>
@@ -187,11 +314,7 @@ export default function ClubsPage() {
 
           <div className="flex gap-3 overflow-x-auto pl-5 pr-3 pb-1">
             {recommended.map((club) => (
-              <button
-                key={club.id}
-                onClick={() => setSelectedClub(club)}
-                className="flex-shrink-0 w-44 text-left active:scale-[0.97] transition-all duration-200 rounded-3xl"
-              >
+              <div key={club.id} className="flex-shrink-0 w-44 text-left rounded-3xl">
                 <div
                   className="rounded-3xl overflow-hidden card-hover shadow-glass"
                   style={{
@@ -201,12 +324,17 @@ export default function ClubsPage() {
                     backdropFilter: 'blur(20px)',
                   }}
                 >
-                  <div className={`h-[96px] bg-gradient-to-br ${club.color} relative overflow-hidden`}>
-                    <img
-                      src={club.heroImage}
-                      alt={club.name}
-                      className="w-full h-full object-cover opacity-45 mix-blend-overlay"
-                    />
+                  <div
+                    className={`h-[96px] bg-gradient-to-br ${club.color} relative overflow-hidden cursor-pointer`}
+                    onClick={() => setSelectedClub(club)}
+                  >
+                    {club.heroImage && (
+                      <img
+                        src={club.heroImage}
+                        alt={club.name}
+                        className="w-full h-full object-cover opacity-45 mix-blend-overlay"
+                      />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                     <div className="absolute bottom-2.5 left-3">
                       <TagBadge label={club.category} variant={club.categoryTag} size="sm" />
@@ -214,12 +342,14 @@ export default function ClubsPage() {
                   </div>
 
                   <div className="p-3.5">
-                    <p className="text-[13px] font-bold text-white leading-tight tracking-tight mb-1">
-                      {club.name}
-                    </p>
-                    <p className="text-[11px] text-white/42 leading-snug line-clamp-2 mb-3 italic">
-                      {club.tagline}
-                    </p>
+                    <div onClick={() => setSelectedClub(club)} className="cursor-pointer">
+                      <p className="text-[13px] font-bold text-white leading-tight tracking-tight mb-1">
+                        {club.name}
+                      </p>
+                      <p className="text-[11px] text-white/42 leading-snug line-clamp-2 mb-3 italic">
+                        {club.tagline}
+                      </p>
+                    </div>
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
@@ -227,26 +357,28 @@ export default function ClubsPage() {
                         <span className="text-[10px] text-white/35 font-semibold">{club.members}</span>
                       </div>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFollow(club.id);
-                        }}
+                        onClick={() => handleToggleFollow(club.id)}
+                        disabled={togglingClubId === club.id}
                         className={`
                           text-[11px] font-bold px-2.5 py-1 rounded-lg
-                          transition-all duration-200 active:scale-90
+                          transition-all duration-200 active:scale-90 disabled:opacity-60
                           ${
-                            followed[club.id]
+                            club.isFollowing
                               ? 'text-white/50 bg-white/8 border border-white/10'
                               : 'gradient-accent text-white shadow-accent'
                           }
                         `}
                       >
-                        {followed[club.id] ? '✓ Following' : '+ Follow'}
+                        {togglingClubId === club.id
+                          ? '...'
+                          : club.isFollowing
+                          ? '✓ Following'
+                          : '+ Follow'}
                       </button>
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -289,10 +421,9 @@ export default function ClubsPage() {
         ) : (
           <div className="flex flex-col gap-3 pb-2">
             {filtered.map((club, index) => (
-              <button
+              <div
                 key={club.id}
-                onClick={() => setSelectedClub(club)}
-                className="text-left w-full active:scale-[0.98] transition-all duration-200"
+                className="w-full transition-all duration-200"
                 style={{ animationDelay: `${index * 40}ms` }}
               >
                 <div
@@ -304,7 +435,10 @@ export default function ClubsPage() {
                     backdropFilter: 'blur(24px)',
                   }}
                 >
-                  <div className="flex items-center gap-4 p-4 pb-3">
+                  <div
+                    className="flex items-center gap-4 p-4 pb-3 cursor-pointer"
+                    onClick={() => setSelectedClub(club)}
+                  >
                     <ClubLogo club={club} size="md" />
 
                     <div className="flex-1 min-w-0">
@@ -331,28 +465,34 @@ export default function ClubsPage() {
                     </div>
 
                     <Button
-                      variant={followed[club.id] ? 'secondary' : 'primary'}
+                      variant={club.isFollowing ? 'secondary' : 'primary'}
                       size="sm"
                       onClick={(e?: React.MouseEvent) => {
                         e?.stopPropagation();
-                        toggleFollow(club.id);
+                        handleToggleFollow(club.id);
                       }}
                       className="flex-shrink-0 !px-3 !py-1.5 !text-[11px] !font-bold"
                     >
-                      {followed[club.id] ? 'Following' : 'Follow'}
+                      {togglingClubId === club.id
+                        ? '...'
+                        : club.isFollowing
+                        ? 'Following'
+                        : 'Follow'}
                     </Button>
                   </div>
 
                   <div className="mx-4 mb-3.5 rounded-2xl overflow-hidden h-[72px]">
-                    <img
-                      src={club.heroImage}
-                      alt=""
-                      className="w-full h-full object-cover opacity-30"
-                      style={{ filter: 'saturate(0.7)' }}
-                    />
+                    {club.heroImage && (
+                      <img
+                        src={club.heroImage}
+                        alt=""
+                        className="w-full h-full object-cover opacity-30"
+                        style={{ filter: 'saturate(0.7)' }}
+                      />
+                    )}
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

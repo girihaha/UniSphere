@@ -1,50 +1,65 @@
-import { User, LoginPayload, SignupPayload, AuthResponse, UserRole } from '../types';
+import { User, LoginPayload, SignupPayload, AuthResponse } from '../types';
 import { api, storeToken, clearToken } from '../lib/api';
 
 const UNIVERSITY_EMAIL_DOMAIN = '@srmist.edu.in';
 
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function normalizeRegNumber(regNumber: string) {
+  return regNumber.trim().toUpperCase();
+}
+
 function validateLoginInput(email: string, password: string): string | null {
-  if (!email.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
     return 'Please use your university email (@srmist.edu.in).';
   }
+
   if (!password || password.length < 6) {
     return 'Password must be at least 6 characters.';
   }
+
   return null;
 }
 
 function validateSignupInput(data: SignupPayload): string | null {
-  if (!data.email.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
+  const normalizedEmail = normalizeEmail(data.email);
+
+  if (!normalizedEmail.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
     return 'Please use your university email (@srmist.edu.in).';
   }
+
   if (!data.name.trim()) return 'Full name is required.';
   if (!data.regNumber.trim()) return 'Registration number is required.';
-  if (!data.branch) return 'Please select your branch.';
-  if (!data.year) return 'Please select your year.';
-  if (data.password.length < 6) return 'Password must be at least 6 characters.';
+  if (!data.branch.trim()) return 'Please select your branch.';
+  if (!data.year.trim()) return 'Please select your year.';
+  if (!data.password || data.password.length < 6) {
+    return 'Password must be at least 6 characters.';
+  }
+
   return null;
 }
 
-function inferRoleFromEmail(email: string): UserRole {
-  if (email.startsWith('admin.')) return 'super_admin';
-  if (email.startsWith('club.')) return 'club_admin';
-  return 'student';
-}
-
-function buildMockUser(email: string): User {
-  const role = inferRoleFromEmail(email);
-  const name =
-    role === 'super_admin' ? 'Admin User' :
-    role === 'club_admin' ? 'Club Admin' :
-    'Fahad Kasim';
+function normalizeUser(user: User): User {
   return {
-    name,
-    email,
-    regNumber: 'RA2211023010123',
-    branch: 'Computer Science & Engineering',
-    degree: 'B.Tech',
-    year: '3rd Year',
-    role,
+    id: user.id,
+    name: user.name,
+    email: normalizeEmail(user.email),
+    regNumber: normalizeRegNumber(user.regNumber),
+    branch: user.branch,
+    degree: user.degree || 'B.Tech',
+    year: user.year,
+    cgpa: user.cgpa || '',
+    bio: user.bio || '',
+    avatarUrl: user.avatarUrl || '',
+    role: user.role,
+    connections: user.connections ?? 0,
+    posts: user.posts ?? 0,
+    notes: user.notes ?? 0,
+    clubs: user.clubs ?? 0,
   };
 }
 
@@ -53,72 +68,76 @@ export async function loginUser(
   password: string
 ): Promise<{ user?: User; error?: string }> {
   const validationError = validateLoginInput(email, password);
-  if (validationError) return { error: validationError };
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  if (API_BASE_URL) {
-    try {
-      const response = await api.post<AuthResponse>('/auth/login', {
-        email,
-        password,
-      } as LoginPayload);
-      if (response.token) storeToken(response.token);
-      return { user: response.user };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed';
-      return { error: message };
-    }
+  if (validationError) {
+    return { error: validationError };
   }
 
-  await new Promise((r) => setTimeout(r, 1200));
-  return { user: buildMockUser(email) };
+  try {
+    const response = await api.post<AuthResponse>('/auth/login', {
+      email: normalizeEmail(email),
+      password,
+    } as LoginPayload);
+
+    if (!response.user?.id) {
+      return { error: 'Login failed: invalid user data returned by server.' };
+    }
+
+    if (response.token) {
+      storeToken(response.token);
+    }
+
+    return { user: normalizeUser(response.user) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Login failed';
+    return { error: message };
+  }
 }
 
 export async function signupUser(
   data: SignupPayload
 ): Promise<{ user?: User; error?: string }> {
   const validationError = validateSignupInput(data);
-  if (validationError) return { error: validationError };
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
-  if (API_BASE_URL) {
-    try {
-      const response = await api.post<AuthResponse>('/auth/signup', data);
-      if (response.token) storeToken(response.token);
-      return { user: response.user };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Signup failed';
-      return { error: message };
-    }
+  if (validationError) {
+    return { error: validationError };
   }
 
-  await new Promise((r) => setTimeout(r, 1400));
-  const user: User = {
-    name: data.name,
-    email: data.email,
-    regNumber: data.regNumber,
-    branch: data.branch,
-    year: data.year,
-    role: data.role,
-  };
-  return { user };
+  try {
+    const response = await api.post<AuthResponse>('/auth/signup', {
+      name: data.name.trim(),
+      regNumber: normalizeRegNumber(data.regNumber),
+      email: normalizeEmail(data.email),
+      branch: data.branch.trim(),
+      year: data.year.trim(),
+      password: data.password,
+    });
+
+    if (!response.user?.id) {
+      return { error: 'Signup failed: invalid user data returned by server.' };
+    }
+
+    if (response.token) {
+      storeToken(response.token);
+    }
+
+    return { user: normalizeUser(response.user) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Signup failed';
+    return { error: message };
+  }
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+  try {
+    const response = await api.get<{ user: User }>('/auth/me');
 
-  if (API_BASE_URL) {
-    try {
-      const response = await api.get<{ user: User }>('/auth/me');
-      return response.user;
-    } catch {
+    if (!response.user?.id) {
       return null;
     }
-  }
 
-  return null;
+    return normalizeUser(response.user);
+  } catch {
+    return null;
+  }
 }
 
 export function logoutUser(): void {

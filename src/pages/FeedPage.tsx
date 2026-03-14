@@ -1,8 +1,21 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  Heart, MessageCircle, Share2, Bookmark, Flame,
-  ChevronDown, Check, ArrowLeft, Calendar, Clock,
-  MapPin, Users, X, Plus, Link,
+  Heart,
+  MessageCircle,
+  Share2,
+  Bookmark,
+  Flame,
+  ChevronDown,
+  Check,
+  ArrowLeft,
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  X,
+  Plus,
+  Link,
+  Megaphone,
 } from 'lucide-react';
 import type { Post as FeedItem } from '../types';
 import TagBadge from '../components/TagBadge';
@@ -26,6 +39,41 @@ const FILTERS: { value: FilterValue; label: string }[] = [
 function formatNumber(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
+}
+
+function getAuthorMeta(item: FeedItem) {
+  const isClubPost = item.authorType === 'club';
+
+  return {
+    isClubPost,
+    displayName: isClubPost ? item.clubName || item.author : item.author,
+    displayRole: isClubPost ? 'Club' : item.authorRole,
+    avatar: isClubPost ? item.clubAvatar || item.avatar : item.avatar,
+  };
+}
+
+function getKindAccent(item: FeedItem) {
+  if (item.kind === 'announcement') {
+    return {
+      icon: Megaphone,
+      label: 'Announcement',
+      textClass: 'text-amber-300',
+      bg: 'rgba(245,158,11,0.16)',
+      border: '1px solid rgba(245,158,11,0.28)',
+    };
+  }
+
+  if (item.kind === 'event') {
+    return {
+      icon: Calendar,
+      label: 'Event',
+      textClass: 'text-emerald-300',
+      bg: 'rgba(34,197,94,0.16)',
+      border: '1px solid rgba(34,197,94,0.28)',
+    };
+  }
+
+  return null;
 }
 
 interface InteractionState {
@@ -78,7 +126,10 @@ function FilterDropdown({
           {FILTERS.map((f) => (
             <button
               key={f.value}
-              onClick={() => { onChange(f.value); setOpen(false); }}
+              onClick={() => {
+                onChange(f.value);
+                setOpen(false);
+              }}
               className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-white/6 active:bg-white/10"
               style={{ color: f.value === value ? '#818cf8' : 'rgba(255,255,255,0.6)' }}
             >
@@ -110,6 +161,8 @@ function DetailView({
   visible: boolean;
 }) {
   const touchStartX = useRef(0);
+  const authorMeta = getAuthorMeta(item);
+  const kindAccent = getKindAccent(item);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -118,6 +171,12 @@ function DetailView({
   const handleTouchEnd = (e: React.TouchEvent) => {
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     if (deltaX > 60) onClose();
+  };
+
+  const handleOpenRegisterLink = () => {
+    if (item.eventDetails?.registerLink) {
+      window.open(item.eventDetails.registerLink, '_blank', 'noopener,noreferrer');
+    }
   };
 
   return (
@@ -131,11 +190,7 @@ function DetailView({
       onTouchEnd={handleTouchEnd}
     >
       <div className="relative h-[260px] flex-shrink-0 overflow-hidden">
-        <img
-          src={item.image}
-          alt={item.title}
-          className="w-full h-full object-cover"
-        />
+        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-[#0a0e1a]/30 to-transparent" />
 
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-12">
@@ -150,7 +205,22 @@ function DetailView({
           >
             <ArrowLeft size={17} strokeWidth={2.5} />
           </button>
-          <TagBadge label={item.category} variant={item.categoryTag} />
+
+          <div className="flex items-center gap-2">
+            {kindAccent && (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+                style={{
+                  background: kindAccent.bg,
+                  border: kindAccent.border,
+                }}
+              >
+                <kindAccent.icon size={10} className={kindAccent.textClass} />
+                <span className={`text-[10px] font-bold ${kindAccent.textClass}`}>{kindAccent.label}</span>
+              </div>
+            )}
+            <TagBadge label={item.category} variant={item.categoryTag} />
+          </div>
         </div>
       </div>
 
@@ -160,11 +230,11 @@ function DetailView({
       >
         <div className="px-5 pt-5 pb-8">
           <div className="flex items-center gap-2.5 mb-4">
-            <Avatar src={item.avatar} name={item.authorName} size="sm" />
+            <Avatar src={authorMeta.avatar} name={authorMeta.displayName} size="sm" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-white leading-none">{item.author}</p>
+              <p className="text-xs font-bold text-white leading-none">{authorMeta.displayName}</p>
               <p className="text-[10px] text-white/35 mt-0.5 font-medium">
-                {item.authorRole} · {item.time}
+                {authorMeta.displayRole} · {item.time}
               </p>
             </div>
           </div>
@@ -197,26 +267,36 @@ function DetailView({
               <p className="text-xs font-bold text-primary-400 mb-3 uppercase tracking-wider">
                 Event Details
               </p>
+
               <div className="flex flex-col gap-2.5 mb-4">
-                <div className="flex items-center gap-2.5">
-                  <Calendar size={13} className="text-primary-400 flex-shrink-0" />
-                  <span className="text-[13px] font-semibold text-white/80">
-                    {item.eventDetails.date}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <Clock size={13} className="text-primary-400 flex-shrink-0" />
-                  <span className="text-[13px] font-semibold text-white/80">
-                    {item.eventDetails.time}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <MapPin size={13} className="text-primary-400 flex-shrink-0" />
-                  <span className="text-[13px] font-semibold text-white/80">
-                    {item.eventDetails.location}
-                  </span>
-                </div>
-                {item.eventDetails.seats !== null && (
+                {item.eventDetails.date && (
+                  <div className="flex items-center gap-2.5">
+                    <Calendar size={13} className="text-primary-400 flex-shrink-0" />
+                    <span className="text-[13px] font-semibold text-white/80">
+                      {item.eventDetails.date}
+                    </span>
+                  </div>
+                )}
+
+                {item.eventDetails.time && (
+                  <div className="flex items-center gap-2.5">
+                    <Clock size={13} className="text-primary-400 flex-shrink-0" />
+                    <span className="text-[13px] font-semibold text-white/80">
+                      {item.eventDetails.time}
+                    </span>
+                  </div>
+                )}
+
+                {item.eventDetails.location && (
+                  <div className="flex items-center gap-2.5">
+                    <MapPin size={13} className="text-primary-400 flex-shrink-0" />
+                    <span className="text-[13px] font-semibold text-white/80">
+                      {item.eventDetails.location}
+                    </span>
+                  </div>
+                )}
+
+                {item.eventDetails.seats !== null && item.eventDetails.seats !== undefined && (
                   <div className="flex items-center gap-2.5">
                     <Users size={13} className="text-primary-400 flex-shrink-0" />
                     <span className="text-[13px] font-semibold text-white/80">
@@ -225,8 +305,14 @@ function DetailView({
                   </div>
                 )}
               </div>
-              <Button variant="primary" size="md" fullWidth>
-                {item.eventDetails.registerLabel}
+
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
+                onClick={handleOpenRegisterLink}
+              >
+                {item.eventDetails.registerLabel || 'Learn More'}
               </Button>
             </div>
           )}
@@ -321,6 +407,8 @@ function FeedCard({
 }) {
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+  const authorMeta = getAuthorMeta(item);
+  const kindAccent = getKindAccent(item);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -341,11 +429,7 @@ function FeedCard({
       onTouchEnd={handleTouchEnd}
     >
       <div className="absolute inset-0">
-        <img
-          src={item.image}
-          alt={item.title}
-          className="w-full h-full object-cover"
-        />
+        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-[#0a0e1a]/55 to-[#0a0e1a]/15" />
       </div>
 
@@ -360,7 +444,22 @@ function FeedCard({
       </div>
 
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-14 z-10">
-        <TagBadge label={item.category} variant={item.categoryTag} dot />
+        <div className="flex items-center gap-2">
+          <TagBadge label={item.category} variant={item.categoryTag} dot />
+          {kindAccent && (
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded-full"
+              style={{
+                background: kindAccent.bg,
+                border: kindAccent.border,
+              }}
+            >
+              <kindAccent.icon size={9} className={kindAccent.textClass} />
+              <span className={`text-[9px] font-bold ${kindAccent.textClass}`}>{kindAccent.label}</span>
+            </div>
+          )}
+        </div>
+
         {state.likes > 500 && (
           <div
             className="flex items-center gap-1 px-2 py-1 rounded-full"
@@ -377,7 +476,10 @@ function FeedCard({
 
       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
         <button
-          onClick={(e) => { e.stopPropagation(); onToggle('liked'); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle('liked');
+          }}
           className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all duration-200 active:scale-90 ${
             state.liked
               ? 'text-rose-400 bg-rose-500/15'
@@ -390,7 +492,10 @@ function FeedCard({
         </button>
 
         <button
-          onClick={(e) => { e.stopPropagation(); onOpenComments(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenComments();
+          }}
           className="flex flex-col items-center gap-1 p-3 rounded-2xl text-white/60 bg-black/30 hover:bg-black/50 transition-all active:scale-90"
           style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
@@ -399,7 +504,10 @@ function FeedCard({
         </button>
 
         <button
-          onClick={(e) => { e.stopPropagation(); onToggle('saved'); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle('saved');
+          }}
           className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all duration-200 active:scale-90 ${
             state.saved
               ? 'text-primary-400 bg-primary-500/15'
@@ -412,7 +520,10 @@ function FeedCard({
         </button>
 
         <button
-          onClick={(e) => { e.stopPropagation(); onShare(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onShare();
+          }}
           className="flex flex-col items-center gap-1 p-3 rounded-2xl text-white/60 bg-black/30 hover:bg-black/50 transition-all active:scale-90"
           style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
@@ -423,10 +534,12 @@ function FeedCard({
 
       <div className="absolute bottom-0 left-0 right-0 px-5 pb-28 z-10">
         <div className="flex items-center gap-2.5 mb-3">
-          <Avatar src={item.avatar} name={item.authorName} size="sm" />
+          <Avatar src={authorMeta.avatar} name={authorMeta.displayName} size="sm" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-white leading-none">{item.author}</p>
-            <p className="text-[10px] text-white/45 mt-0.5">{item.authorRole} · {item.time}</p>
+            <p className="text-xs font-bold text-white leading-none">{authorMeta.displayName}</p>
+            <p className="text-[10px] text-white/45 mt-0.5">
+              {authorMeta.displayRole} · {item.time}
+            </p>
           </div>
         </div>
 
@@ -436,6 +549,7 @@ function FeedCard({
         >
           {item.title}
         </h2>
+
         <p className="text-[13px] text-white/60 leading-relaxed pr-16 line-clamp-2 font-medium mb-4">
           {item.summary}
         </p>
@@ -458,7 +572,7 @@ function FeedCard({
 }
 
 export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?: () => void }) {
-  const { items: allItems } = useFeed();
+  const { items: allItems, refreshFeed, isLoading } = useFeed();
   const [filter, setFilter] = useState<FilterValue>('general');
   const [interactions, setInteractions] = useState<Record<number, InteractionState>>({});
   const [detailItem, setDetailItem] = useState<FeedItem | null>(null);
@@ -466,19 +580,23 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsItem, setCommentsItem] = useState<FeedItem | null>(null);
   const [shareToast, setShareToast] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 900);
-    return () => clearTimeout(t);
-  }, []);
+    if (filter === 'general') {
+      refreshFeed();
+    } else {
+      refreshFeed(filter);
+    }
+  }, [filter, refreshFeed]);
 
-  const getInteraction = useCallback((item: FeedItem): InteractionState => {
-    return interactions[item.id] ?? { liked: item.liked, saved: item.saved, likes: item.likes };
-  }, [interactions]);
+  const getInteraction = useCallback(
+    (item: FeedItem): InteractionState => {
+      return interactions[item.id] ?? { liked: item.liked, saved: item.saved, likes: item.likes };
+    },
+    [interactions]
+  );
 
-  const displayedItems =
-    filter === 'general' ? allItems : allItems.filter((f) => f.type === filter);
+  const displayedItems = allItems;
 
   const toggle = useCallback((id: number, type: 'liked' | 'saved', currentState: InteractionState) => {
     setInteractions((prev) => {
@@ -513,7 +631,16 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
     setTimeout(() => setShareToast(false), 2200);
   }, []);
 
-  if (loading) {
+  const handleCloseCreateModal = async () => {
+    setCreateOpen(false);
+    if (filter === 'general') {
+      await refreshFeed();
+    } else {
+      await refreshFeed(filter);
+    }
+  };
+
+  if (isLoading) {
     return (
       <div className="relative" style={{ height: '100dvh', overflow: 'hidden' }}>
         <FeedCardSkeleton />
@@ -557,24 +684,20 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
                 <X size={24} className="text-white/25" />
               </div>
               <p className="text-base font-bold text-white mb-1">Nothing here yet</p>
-              <p className="text-sm text-white/40">Try a different filter</p>
+              <p className="text-sm text-white/40">
+                {filter === 'general' ? 'Create the first post' : 'Try a different filter'}
+              </p>
             </div>
           </div>
         )}
       </div>
 
-      <div
-        className="absolute top-12 left-4 z-20"
-        style={{ pointerEvents: 'auto' }}
-      >
+      <div className="absolute top-12 left-4 z-20" style={{ pointerEvents: 'auto' }}>
         <FilterDropdown value={filter} onChange={setFilter} />
       </div>
 
       {onOpenNotifications && (
-        <div
-          className="absolute top-12 right-4 z-20"
-          style={{ pointerEvents: 'auto' }}
-        >
+        <div className="absolute top-12 right-4 z-20" style={{ pointerEvents: 'auto' }}>
           <NotificationBell onClick={onOpenNotifications} />
         </div>
       )}
@@ -604,7 +727,7 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
         />
       )}
 
-      <CreatePostModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreatePostModal isOpen={createOpen} onClose={handleCloseCreateModal} />
 
       {commentsItem && (
         <CommentsSheet
