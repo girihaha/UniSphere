@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -14,44 +15,6 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
   }
-}
-
-export async function apiRequest<T>(
-  path: string,
-  options: RequestOptions = {}
-): Promise<T> {
-  const { method = 'GET', body, headers = {}, token } = options;
-
-  const requestHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...headers,
-  };
-
-  if (token) {
-    requestHeaders['Authorization'] = `Bearer ${token}`;
-  }
-
-  const storedToken = getStoredToken();
-  if (storedToken && !token) {
-    requestHeaders['Authorization'] = `Bearer ${storedToken}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers: requestHeaders,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!response.ok) {
-    let message = `Request failed with status ${response.status}`;
-    try {
-      const errorData = await response.json();
-      message = errorData.message ?? errorData.error ?? message;
-    } catch {}
-    throw new ApiError(message, response.status);
-  }
-
-  return response.json() as Promise<T>;
 }
 
 function getStoredToken(): string | null {
@@ -74,21 +37,96 @@ export function clearToken(): void {
   } catch {}
 }
 
+export async function apiRequest<T>(
+  path: string,
+  options: RequestOptions = {}
+): Promise<T> {
+  const { method = 'GET', body, headers = {}, token } = options;
+
+  const requestHeaders: Record<string, string> = {
+    ...headers,
+  };
+
+  const authToken = token || getStoredToken();
+  if (authToken) {
+    requestHeaders.Authorization = `Bearer ${authToken}`;
+  }
+
+  const hasBody = body !== undefined && body !== null;
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+
+  if (!isFormData) {
+    requestHeaders['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: requestHeaders,
+    body: hasBody ? (isFormData ? (body as FormData) : JSON.stringify(body)) : undefined,
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  let responseData: unknown = null;
+
+  try {
+    if (response.status !== 204) {
+      responseData = isJson ? await response.json() : await response.text();
+    }
+  } catch {
+    responseData = null;
+  }
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+
+    if (typeof responseData === 'object' && responseData !== null) {
+      const data = responseData as { message?: string; error?: string };
+      message = data.message || data.error || message;
+    } else if (typeof responseData === 'string' && responseData.trim()) {
+      message = responseData;
+    }
+
+    throw new ApiError(message, response.status);
+  }
+
+  return responseData as T;
+}
+
 export const api = {
   get: <T>(path: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-    apiRequest<T>(path, { ...options, method: 'GET' }),
+    apiRequest<T>(path, {
+      method: 'GET',
+      ...options,
+    }),
 
   post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-    apiRequest<T>(path, { ...options, method: 'POST', body }),
+    apiRequest<T>(path, {
+      method: 'POST',
+      body,
+      ...options,
+    }),
 
   put: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-    apiRequest<T>(path, { ...options, method: 'PUT', body }),
+    apiRequest<T>(path, {
+      method: 'PUT',
+      body,
+      ...options,
+    }),
 
   patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-    apiRequest<T>(path, { ...options, method: 'PATCH', body }),
+    apiRequest<T>(path, {
+      method: 'PATCH',
+      body,
+      ...options,
+    }),
 
   delete: <T>(path: string, options?: Omit<RequestOptions, 'method' | 'body'>) =>
-    apiRequest<T>(path, { ...options, method: 'DELETE' }),
+    apiRequest<T>(path, {
+      method: 'DELETE',
+      ...options,
+    }),
 };
 
 export { API_BASE_URL };

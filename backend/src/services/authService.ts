@@ -1,10 +1,12 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
+import { sendOtpMail } from "../lib/mailer";
 import { SignupPayload, UserRole, sanitizeUser } from "../models/userModel";
 
 const UNIVERSITY_EMAIL_DOMAIN = "@srmist.edu.in";
 const ALLOWED_SOCIAL_TYPES = ["instagram", "linkedin", "github", "portfolio"] as const;
+const OTP_EXPIRY_MINUTES = 10;
 
 type SocialLinkInput = {
   id?: string;
@@ -13,8 +15,30 @@ type SocialLinkInput = {
   url?: string;
 };
 
+type ForgotPasswordRequestResult = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
+
+type VerifyOtpResult = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
+
+type ResetPasswordResult = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+};
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function normalizeRegNumber(regNumber?: string) {
+  return regNumber?.trim().toUpperCase() || "";
 }
 
 function createToken(user: any) {
@@ -34,7 +58,7 @@ function createToken(user: any) {
 function sanitizeUserWithDefaults(user: any) {
   return sanitizeUser({
     ...user,
-    regNumber: "",
+    regNumber: user.regNumber || "",
     degree: "B.Tech",
   } as any);
 }
@@ -53,31 +77,183 @@ function mapSocialLink(link: any) {
   };
 }
 
-export async function signupUser(data: SignupPayload) {
-  if (!data.email?.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
-    return { error: "Please use your university email (@srmist.edu.in)" };
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function hashOtp(otp: string) {
+  return bcrypt.hash(otp, 10);
+}
+
+async function compareOtp(otp: string, otpHash: string) {
+  return bcrypt.compare(otp, otpHash);
+}
+
+function getOtpExpiryDate() {
+  return new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+}
+
+async function sendOtpEmail(
+  email: string,
+  otp: string,
+  purpose: "signup" | "forgot_password"
+) {
+  await sendOtpMail({
+    to: email,
+    otp,
+    purpose,
+  });
+}
+
+function validatePassword(password?: string) {
+  if (!password || password.length < 6) {
+    return "Password must be at least 6 characters long.";
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email: normalizeEmail(data.email) },
+  return null;
+}
+
+function validateUniversityEmail(email?: string) {
+  if (!email?.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
+    return `Please use your university email (${UNIVERSITY_EMAIL_DOMAIN})`;
+  }
+
+  return null;
+}
+
+export async function signupUser(data: SignupPayload) {
+  if (!data.email) {
+    return { error: "Email is required." };
+  }
+
+  if (!data.name?.trim()) {
+    return { error: "Name is required." };
+  }
+
+  if (!data.branch?.trim()) {
+    return { error: "Branch is required." };
+  }
+
+  const normalizedEmail = normalizeEmail(data.email);
+
+  const emailError = validateUniversityEmail(normalizedEmail);
+  if (emailError) {
+    return { error: emailError };
+  }
+
+  const passwordError = validatePassword(data.password);
+  if (passwordError) {
+    return { error: passwordError };
+  }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
   });
 
-  if (existing) {
+  if (existingUser) {
     return { error: "User already exists." };
   }
 
+  const otp = generateOtp();
+  const otpHash = await hashOtp(otp);
   const passwordHash = await bcrypt.hash(data.password, 10);
+  const normalizedYear = Number.parseInt(String(data.year), 10);
+
+  await prisma.pendingSignup.upsert({
+    where: { email: normalizedEmail },
+    update: {
+      name: data.name.trim(),
+      password: passwordHash,
+      regNumber: normalizeRegNumber((data as any).regNumber),
+      branch: data.branch.trim(),
+      year: Number.isNaN(normalizedYear) ? 1 : normalizedYear,
+      role: "student",
+      otpHash,
+      expiresAt: getOtpExpiryDate(),
+      createdAt: new Date(),
+    },
+    create: {
+      name: data.name.trim(),
+      email: normalizedEmail,
+      password: passwordHash,
+      regNumber: normalizeRegNumber((data as any).regNumber),
+      branch: data.branch.trim(),
+      year: Number.isNaN(normalizedYear) ? 1 : normalizedYear,
+      role: "student",
+      otpHash,
+      expiresAt: getOtpExpiryDate(),
+    },
+  });
+
+  await sendOtpEmail(normalizedEmail, otp, "signup");
+
+  return {
+    requiresOtp: true,
+    message: "OTP sent to your university email. Verify OTP to complete signup.",
+    email: normalizedEmail,
+  };
+}
+
+export async function verifySignupOtp(email: string, otp: string) {
+  if (!email?.trim()) {
+    return { error: "Email is required." };
+  }
+
+  if (!otp?.trim()) {
+    return { error: "OTP is required." };
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  const pendingSignup = await prisma.pendingSignup.findUnique({
+    where: { email: normalizedEmail },
+  });
+
+  if (!pendingSignup) {
+    return { error: "No pending signup found for this email." };
+  }
+
+  if (pendingSignup.expiresAt.getTime() < Date.now()) {
+    await prisma.pendingSignup.delete({
+      where: { email: normalizedEmail },
+    });
+
+    return { error: "OTP expired. Please sign up again." };
+  }
+
+  const otpValid = await compareOtp(otp, pendingSignup.otpHash);
+
+  if (!otpValid) {
+    return { error: "Invalid OTP." };
+  }
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
+
+  if (existingUser) {
+    await prisma.pendingSignup.delete({
+      where: { email: normalizedEmail },
+    });
+
+    return { error: "User already exists." };
+  }
 
   const user = await prisma.user.create({
     data: {
       id: `user-${Date.now()}`,
-      name: data.name,
-      email: normalizeEmail(data.email),
-      password: passwordHash,
-      branch: data.branch,
-      year: parseInt(data.year),
-      role: "student",
+      name: pendingSignup.name,
+      email: pendingSignup.email,
+      password: pendingSignup.password,
+      regNumber: pendingSignup.regNumber || "",
+      branch: pendingSignup.branch,
+      year: pendingSignup.year,
+      role: pendingSignup.role || "student",
     },
+  });
+
+  await prisma.pendingSignup.delete({
+    where: { email: normalizedEmail },
   });
 
   const token = createToken(user);
@@ -85,6 +261,42 @@ export async function signupUser(data: SignupPayload) {
   return {
     user: sanitizeUserWithDefaults(user),
     token,
+    message: "Signup completed successfully.",
+  };
+}
+
+export async function resendSignupOtp(email: string) {
+  if (!email?.trim()) {
+    return { error: "Email is required." };
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  const pendingSignup = await prisma.pendingSignup.findUnique({
+    where: { email: normalizedEmail },
+  });
+
+  if (!pendingSignup) {
+    return { error: "No pending signup found for this email." };
+  }
+
+  const otp = generateOtp();
+  const otpHash = await hashOtp(otp);
+
+  await prisma.pendingSignup.update({
+    where: { email: normalizedEmail },
+    data: {
+      otpHash,
+      expiresAt: getOtpExpiryDate(),
+      createdAt: new Date(),
+    },
+  });
+
+  await sendOtpEmail(normalizedEmail, otp, "signup");
+
+  return {
+    success: true,
+    message: "Signup OTP resent successfully.",
   };
 }
 
@@ -108,6 +320,161 @@ export async function loginUser(email: string, password: string) {
   return {
     user: sanitizeUserWithDefaults(user),
     token,
+  };
+}
+
+export async function requestForgotPasswordOtp(
+  email: string
+): Promise<ForgotPasswordRequestResult> {
+  if (!email?.trim()) {
+    return { error: "Email is required." };
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
+
+  if (!user) {
+    return { error: "No account found with this email." };
+  }
+
+  const otp = generateOtp();
+  const otpHash = await hashOtp(otp);
+
+  await prisma.passwordResetOtp.create({
+    data: {
+      email: normalizedEmail,
+      otpHash,
+      expiresAt: getOtpExpiryDate(),
+    },
+  });
+
+  await sendOtpEmail(normalizedEmail, otp, "forgot_password");
+
+  return {
+    success: true,
+    message: "Password reset OTP sent to your email.",
+  };
+}
+
+export async function verifyForgotPasswordOtp(
+  email: string,
+  otp: string
+): Promise<VerifyOtpResult> {
+  if (!email?.trim()) {
+    return { error: "Email is required." };
+  }
+
+  if (!otp?.trim()) {
+    return { error: "OTP is required." };
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  const latestOtp = await prisma.passwordResetOtp.findFirst({
+    where: {
+      email: normalizedEmail,
+      consumedAt: null,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!latestOtp) {
+    return { error: "No OTP request found. Please request a new OTP." };
+  }
+
+  if (latestOtp.expiresAt.getTime() < Date.now()) {
+    return { error: "OTP expired. Please request a new OTP." };
+  }
+
+  const otpValid = await compareOtp(otp, latestOtp.otpHash);
+
+  if (!otpValid) {
+    return { error: "Invalid OTP." };
+  }
+
+  return {
+    success: true,
+    message: "OTP verified successfully.",
+  };
+}
+
+export async function resetPasswordWithOtp(
+  email: string,
+  otp: string,
+  newPassword: string
+): Promise<ResetPasswordResult> {
+  if (!email?.trim()) {
+    return { error: "Email is required." };
+  }
+
+  if (!otp?.trim()) {
+    return { error: "OTP is required." };
+  }
+
+  const passwordError = validatePassword(newPassword);
+  if (passwordError) {
+    return { error: passwordError };
+  }
+
+  const normalizedEmail = normalizeEmail(email);
+
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
+
+  if (!user) {
+    return { error: "No account found with this email." };
+  }
+
+  const latestOtp = await prisma.passwordResetOtp.findFirst({
+    where: {
+      email: normalizedEmail,
+      consumedAt: null,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!latestOtp) {
+    return { error: "No OTP request found. Please request a new OTP." };
+  }
+
+  if (latestOtp.expiresAt.getTime() < Date.now()) {
+    return { error: "OTP expired. Please request a new OTP." };
+  }
+
+  const otpValid = await compareOtp(otp, latestOtp.otpHash);
+
+  if (!otpValid) {
+    return { error: "Invalid OTP." };
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { email: normalizedEmail },
+      data: {
+        password: passwordHash,
+      },
+    }),
+    prisma.passwordResetOtp.update({
+      where: { id: latestOtp.id },
+      data: {
+        consumedAt: new Date(),
+      },
+    }),
+  ]);
+
+  return {
+    success: true,
+    message: "Password reset successfully.",
   };
 }
 
@@ -237,10 +604,10 @@ export async function updateSocialLinksByUserId(
       };
     })
     .filter(Boolean) as Array<{
-    type: string;
-    handle: string;
-    url: string | null;
-  }>;
+      type: string;
+      handle: string;
+      url: string | null;
+    }>;
 
   await prisma.$transaction(async (tx) => {
     await tx.socialLink.deleteMany({

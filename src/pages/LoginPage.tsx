@@ -1,27 +1,80 @@
 import { useState, FormEvent } from 'react';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Loader2,
+  AlertCircle,
+  ArrowLeft,
+  Hash,
+  ShieldCheck,
+  RefreshCw,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { UnisphereWordmark } from '../components/UnisphereLogo';
-import logo from "../assets/UniSphere.jpeg";
+import logo from '../assets/UniSphere.jpeg';
 
 interface LoginPageProps {
   onGoSignup: () => void;
 }
 
+type ViewMode = 'login' | 'forgot-email' | 'forgot-otp' | 'forgot-reset';
+
 export default function LoginPage({ onGoSignup }: LoginPageProps) {
-  const { login } = useAuth();
+  const {
+    login,
+    requestForgotPasswordOtp,
+    verifyForgotPasswordOtp,
+    resetPasswordWithOtp,
+  } = useAuth();
+
+  const [view, setView] = useState<ViewMode>('login');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
-  const validate = () => {
+  const [showPass, setShowPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
+
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+    forgotEmail?: string;
+    forgotOtp?: string;
+    newPassword?: string;
+  }>({});
+
+  const resetMessages = () => {
+    setError('');
+    setSuccessMessage('');
+  };
+
+  const openForgotPassword = () => {
+    resetMessages();
+    setFieldErrors({});
+    setForgotEmail(email.trim().toLowerCase());
+    setForgotOtp('');
+    setNewPassword('');
+    setView('forgot-email');
+  };
+
+  const isValidUniversityEmail = (value: string) =>
+    value.trim().toLowerCase().endsWith('@srmist.edu.in');
+
+  const validateLogin = () => {
     const errs: { email?: string; password?: string } = {};
 
     if (!email.trim()) errs.email = 'Email is required.';
-    else if (!email.trim().toLowerCase().endsWith('@srmist.edu.in')) {
+    else if (!isValidUniversityEmail(email)) {
       errs.email = 'Please use your university email (@srmist.edu.in).';
     }
 
@@ -30,14 +83,45 @@ export default function LoginPage({ onGoSignup }: LoginPageProps) {
     return errs;
   };
 
+  const validateForgotEmail = () => {
+    const errs: { forgotEmail?: string } = {};
+
+    if (!forgotEmail.trim()) errs.forgotEmail = 'Email is required.';
+    else if (!isValidUniversityEmail(forgotEmail)) {
+      errs.forgotEmail = 'Please use your university email (@srmist.edu.in).';
+    }
+
+    return errs;
+  };
+
+  const validateForgotOtp = () => {
+    const errs: { forgotOtp?: string } = {};
+
+    if (!forgotOtp.trim()) errs.forgotOtp = 'OTP is required.';
+    else if (forgotOtp.trim().length !== 6) errs.forgotOtp = 'Enter the 6-digit OTP.';
+
+    return errs;
+  };
+
+  const validateResetPassword = () => {
+    const errs: { forgotOtp?: string; newPassword?: string } = {};
+
+    if (!forgotOtp.trim()) errs.forgotOtp = 'OTP is required.';
+    else if (forgotOtp.trim().length !== 6) errs.forgotOtp = 'Enter the 6-digit OTP.';
+
+    if (!newPassword) errs.newPassword = 'New password is required.';
+    else if (newPassword.length < 6) errs.newPassword = 'Password must be at least 6 characters.';
+
+    return errs;
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    setError('');
+    resetMessages();
 
-    const errs = validate();
+    const errs = validateLogin();
     if (Object.keys(errs).length) {
-      setFieldErrors(errs);
+      setFieldErrors((prev) => ({ ...prev, ...errs }));
       return;
     }
 
@@ -54,6 +138,132 @@ export default function LoginPage({ onGoSignup }: LoginPageProps) {
     }
   };
 
+  const handleRequestOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    resetMessages();
+
+    const errs = validateForgotEmail();
+    if (Object.keys(errs).length) {
+      setFieldErrors((prev) => ({ ...prev, ...errs }));
+      return;
+    }
+
+    setFieldErrors((prev) => ({ ...prev, forgotEmail: undefined }));
+    setSubmitting(true);
+
+    try {
+      const cleanedEmail = forgotEmail.trim().toLowerCase();
+      const result = await requestForgotPasswordOtp(cleanedEmail);
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      setForgotEmail(cleanedEmail);
+      setView('forgot-otp');
+      setSuccessMessage(result.message || 'OTP sent successfully.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: FormEvent) => {
+    e.preventDefault();
+    resetMessages();
+
+    const errs = validateForgotOtp();
+    if (Object.keys(errs).length) {
+      setFieldErrors((prev) => ({ ...prev, ...errs }));
+      return;
+    }
+
+    setFieldErrors((prev) => ({ ...prev, forgotOtp: undefined }));
+    setSubmitting(true);
+
+    try {
+      const result = await verifyForgotPasswordOtp(
+        forgotEmail.trim().toLowerCase(),
+        forgotOtp.trim()
+      );
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      setView('forgot-reset');
+      setSuccessMessage(result.message || 'OTP verified successfully.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    resetMessages();
+
+    const errs = validateResetPassword();
+    if (Object.keys(errs).length) {
+      setFieldErrors((prev) => ({ ...prev, ...errs }));
+      return;
+    }
+
+    setFieldErrors((prev) => ({
+      ...prev,
+      forgotOtp: undefined,
+      newPassword: undefined,
+    }));
+    setSubmitting(true);
+
+    try {
+      const result = await resetPasswordWithOtp(
+        forgotEmail.trim().toLowerCase(),
+        forgotOtp.trim(),
+        newPassword
+      );
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      setSuccessMessage(result.message || 'Password reset successfully.');
+      setView('login');
+      setPassword('');
+      setNewPassword('');
+      setForgotOtp('');
+      setForgotEmail('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResendForgotOtp = async () => {
+    resetMessages();
+
+    if (!forgotEmail.trim()) {
+      setError('Email missing. Please start again.');
+      setView('forgot-email');
+      return;
+    }
+
+    setResendingOtp(true);
+
+    try {
+      const result = await requestForgotPasswordOtp(forgotEmail.trim().toLowerCase());
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      setSuccessMessage(result.message || 'OTP resent successfully.');
+    } finally {
+      setResendingOtp(false);
+    }
+  };
+
   const inputBase = `
     w-full pl-11 pr-4 py-3.5 rounded-2xl text-sm font-medium text-white
     placeholder-white/25 outline-none transition-all duration-200
@@ -63,6 +273,77 @@ export default function LoginPage({ onGoSignup }: LoginPageProps) {
     background: 'rgba(255,255,255,0.055)',
     border: `1px solid ${hasError ? 'rgba(244,63,94,0.5)' : 'rgba(255,255,255,0.1)'}`,
   });
+
+  const renderFieldError = (msg?: string) => {
+    if (!msg) return null;
+
+    return (
+      <div className="flex items-center gap-1.5 mt-1.5 ml-1">
+        <AlertCircle size={11} className="text-rose-400 flex-shrink-0" />
+        <p className="text-[11px] text-rose-400">{msg}</p>
+      </div>
+    );
+  };
+
+  const renderMessageBox = () => (
+    <>
+      {error && (
+        <div
+          className="flex items-start gap-2.5 rounded-2xl px-3.5 py-3"
+          style={{
+            background: 'rgba(244,63,94,0.08)',
+            border: '1px solid rgba(244,63,94,0.2)',
+          }}
+        >
+          <AlertCircle size={14} className="text-rose-400 flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-rose-300">{error}</p>
+        </div>
+      )}
+
+      {successMessage && (
+        <div
+          className="flex items-start gap-2.5 rounded-2xl px-3.5 py-3"
+          style={{
+            background: 'rgba(16,185,129,0.08)',
+            border: '1px solid rgba(16,185,129,0.2)',
+          }}
+        >
+          <ShieldCheck size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+          <p className="text-[12px] text-emerald-300">{successMessage}</p>
+        </div>
+      )}
+    </>
+  );
+
+  const renderHeaderText = () => {
+    if (view === 'forgot-email') {
+      return {
+        title: 'Forgot password',
+        subtitle: 'We’ll send an OTP to your university email',
+      };
+    }
+
+    if (view === 'forgot-otp') {
+      return {
+        title: 'Verify OTP',
+        subtitle: 'Enter the 6-digit OTP sent to your email',
+      };
+    }
+
+    if (view === 'forgot-reset') {
+      return {
+        title: 'Reset password',
+        subtitle: 'Set a new password for your account',
+      };
+    }
+
+    return {
+      title: 'Welcome back',
+      subtitle: 'Sign in to your UniSphere account',
+    };
+  };
+
+  const headerText = renderHeaderText();
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 py-10 relative overflow-hidden gradient-bg">
@@ -75,13 +356,38 @@ export default function LoginPage({ onGoSignup }: LoginPageProps) {
         style={{ background: 'radial-gradient(circle, #22d3ee 0%, transparent 70%)' }}
       />
 
-      <div className="w-full max-w-[390px] fade-in">
-        <div className="flex flex-col items-center mb-9">
+      <div className="w-full max-w-[390px] fade-in relative z-10">
+        <div className="flex flex-col items-center mb-9 relative">
+          {view !== 'login' && (
+            <button
+              type="button"
+              onClick={() => {
+                resetMessages();
+                if (view === 'forgot-reset') {
+                  setView('forgot-otp');
+                  return;
+                }
+                if (view === 'forgot-otp') {
+                  setView('forgot-email');
+                  return;
+                }
+                setView('login');
+              }}
+              className="absolute left-0 top-1/2 -translate-y-1/2 p-2.5 rounded-2xl text-white/50 hover:text-white transition-colors active:scale-95"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <ArrowLeft size={17} />
+            </button>
+          )}
+
           <img
-            src ={logo}
-            alt = "UniSphere Logo"
-            className = "w-20 h-20 mb-4 object-cover rounded-2xl"
-            />
+            src={logo}
+            alt="UniSphere Logo"
+            className="w-20 h-20 mb-4 object-cover rounded-2xl"
+          />
         </div>
 
         <div
@@ -100,121 +406,327 @@ export default function LoginPage({ onGoSignup }: LoginPageProps) {
               className="text-xl font-extrabold text-white tracking-tight"
               style={{ letterSpacing: '-0.03em' }}
             >
-              Welcome back
+              {headerText.title}
             </h2>
-            <p className="text-[12px] text-white/35 mt-0.5">Sign in to your UniSphere account</p>
+            <p className="text-[12px] text-white/35 mt-0.5">{headerText.subtitle}</p>
           </div>
 
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="flex flex-col gap-3.5">
-              <div>
-                <div className="relative">
-                  <Mail
-                    size={15}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
-                  />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setFieldErrors((p) => ({ ...p, email: undefined }));
-                    }}
-                    placeholder="university@srmist.edu.in"
-                    className={inputBase}
-                    style={inputStyle(fieldErrors.email)}
-                    autoComplete="email"
-                  />
+          {view === 'login' && (
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="flex flex-col gap-3.5">
+                <div>
+                  <div className="relative">
+                    <Mail
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                    />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setFieldErrors((p) => ({ ...p, email: undefined }));
+                        resetMessages();
+                      }}
+                      placeholder="university@srmist.edu.in"
+                      className={inputBase}
+                      style={inputStyle(fieldErrors.email)}
+                      autoComplete="email"
+                    />
+                  </div>
+                  {renderFieldError(fieldErrors.email)}
                 </div>
 
-                {fieldErrors.email && (
-                  <div className="flex items-center gap-1.5 mt-1.5 ml-1">
-                    <AlertCircle size={11} className="text-rose-400 flex-shrink-0" />
-                    <p className="text-[11px] text-rose-400">{fieldErrors.email}</p>
+                <div>
+                  <div className="relative">
+                    <Lock
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                    />
+                    <input
+                      type={showPass ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFieldErrors((p) => ({ ...p, password: undefined }));
+                        resetMessages();
+                      }}
+                      placeholder="Password"
+                      className={`${inputBase} pr-11`}
+                      style={inputStyle(fieldErrors.password)}
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass((v) => !v)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                    >
+                      {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
-                )}
-              </div>
+                  {renderFieldError(fieldErrors.password)}
+                </div>
 
-              <div>
-                <div className="relative">
-                  <Lock
-                    size={15}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
-                  />
-                  <input
-                    type={showPass ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      setFieldErrors((p) => ({ ...p, password: undefined }));
-                    }}
-                    placeholder="Password"
-                    className={`${inputBase} pr-11`}
-                    style={inputStyle(fieldErrors.password)}
-                    autoComplete="current-password"
-                  />
+                {renderMessageBox()}
+
+                <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => setShowPass((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                    onClick={openForgotPassword}
+                    className="relative z-20 inline-flex text-[12px] font-semibold text-primary-400 hover:text-primary-300 active:opacity-60 transition-opacity cursor-pointer"
                   >
-                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    Forgot password?
                   </button>
                 </div>
 
-                {fieldErrors.password && (
-                  <div className="flex items-center gap-1.5 mt-1.5 ml-1">
-                    <AlertCircle size={11} className="text-rose-400 flex-shrink-0" />
-                    <p className="text-[11px] text-rose-400">{fieldErrors.password}</p>
-                  </div>
-                )}
-              </div>
-
-              {error && (
-                <div
-                  className="flex items-start gap-2.5 rounded-2xl px-3.5 py-3"
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97] disabled:opacity-60 disabled:scale-100 mt-1"
                   style={{
-                    background: 'rgba(244,63,94,0.08)',
-                    border: '1px solid rgba(244,63,94,0.2)',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    boxShadow: submitting ? 'none' : '0 6px 20px rgba(99,102,241,0.4)',
                   }}
                 >
-                  <AlertCircle size={14} className="text-rose-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-[12px] text-rose-300">{error}</p>
-                </div>
-              )}
-
-              <div className="text-right -mt-1">
-                <button
-                  type="button"
-                  className="text-[12px] font-semibold text-primary-400 active:opacity-60 transition-opacity"
-                >
-                  Forgot password?
+                  {submitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign In
+                      <ArrowRight size={15} />
+                    </>
+                  )}
                 </button>
               </div>
+            </form>
+          )}
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97] disabled:opacity-60 disabled:scale-100 mt-1"
-                style={{
-                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                  boxShadow: submitting ? 'none' : '0 6px 20px rgba(99,102,241,0.4)',
-                }}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  <>
-                    Sign In
-                    <ArrowRight size={15} />
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
+          {view === 'forgot-email' && (
+            <form onSubmit={handleRequestOtp} noValidate>
+              <div className="flex flex-col gap-3.5">
+                <div>
+                  <div className="relative">
+                    <Mail
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                    />
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => {
+                        setForgotEmail(e.target.value);
+                        setFieldErrors((p) => ({ ...p, forgotEmail: undefined }));
+                        resetMessages();
+                      }}
+                      placeholder="university@srmist.edu.in"
+                      className={inputBase}
+                      style={inputStyle(fieldErrors.forgotEmail)}
+                      autoComplete="email"
+                    />
+                  </div>
+                  {renderFieldError(fieldErrors.forgotEmail)}
+                </div>
+
+                {renderMessageBox()}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97] disabled:opacity-60 disabled:scale-100 mt-1"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    boxShadow: submitting ? 'none' : '0 6px 20px rgba(99,102,241,0.4)',
+                  }}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Sending OTP...
+                    </>
+                  ) : (
+                    'Send OTP'
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {view === 'forgot-otp' && (
+            <form onSubmit={handleVerifyOtp} noValidate>
+              <div className="flex flex-col gap-3.5">
+                <div
+                  className="flex items-start gap-2.5 rounded-2xl px-4 py-3"
+                  style={{
+                    background: 'rgba(99,102,241,0.08)',
+                    border: '1px solid rgba(99,102,241,0.18)',
+                  }}
+                >
+                  <ShieldCheck size={14} className="text-primary-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[11px] font-bold text-primary-300 mb-0.5">OTP sent</p>
+                    <p className="text-[11px] text-primary-200/65 break-all">
+                      We sent a 6-digit OTP to{' '}
+                      <span className="font-semibold text-primary-200">{forgotEmail}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="relative">
+                    <Hash
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                    />
+                    <input
+                      type="text"
+                      value={forgotOtp}
+                      onChange={(e) => {
+                        setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        setFieldErrors((p) => ({ ...p, forgotOtp: undefined }));
+                        resetMessages();
+                      }}
+                      placeholder="Enter 6-digit OTP"
+                      className={inputBase}
+                      style={inputStyle(fieldErrors.forgotOtp)}
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                      maxLength={6}
+                    />
+                  </div>
+                  {renderFieldError(fieldErrors.forgotOtp)}
+                </div>
+
+                {renderMessageBox()}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97] disabled:opacity-60 disabled:scale-100 mt-1"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    boxShadow: submitting ? 'none' : '0 6px 20px rgba(99,102,241,0.4)',
+                  }}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Verifying OTP...
+                    </>
+                  ) : (
+                    'Verify OTP'
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResendForgotOtp}
+                  disabled={resendingOtp}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white/75 transition-all active:scale-[0.97] disabled:opacity-60"
+                  style={{
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                  }}
+                >
+                  {resendingOtp ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      Resending OTP...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={15} />
+                      Resend OTP
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {view === 'forgot-reset' && (
+            <form onSubmit={handleResetPassword} noValidate>
+              <div className="flex flex-col gap-3.5">
+                <div>
+                  <div className="relative">
+                    <Lock
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                    />
+                    <input
+                      type={showNewPass ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setFieldErrors((p) => ({ ...p, newPassword: undefined }));
+                        resetMessages();
+                      }}
+                      placeholder="New password"
+                      className={`${inputBase} pr-11`}
+                      style={inputStyle(fieldErrors.newPassword)}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPass((v) => !v)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                    >
+                      {showNewPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {renderFieldError(fieldErrors.newPassword)}
+                </div>
+
+                <div>
+                  <div className="relative">
+                    <Hash
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                    />
+                    <input
+                      type="text"
+                      value={forgotOtp}
+                      onChange={(e) => {
+                        setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                        setFieldErrors((p) => ({ ...p, forgotOtp: undefined }));
+                        resetMessages();
+                      }}
+                      placeholder="OTP"
+                      className={inputBase}
+                      style={inputStyle(fieldErrors.forgotOtp)}
+                      autoComplete="one-time-code"
+                      inputMode="numeric"
+                      maxLength={6}
+                    />
+                  </div>
+                  {renderFieldError(fieldErrors.forgotOtp)}
+                </div>
+
+                {renderMessageBox()}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97] disabled:opacity-60 disabled:scale-100 mt-1"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    boxShadow: submitting ? 'none' : '0 6px 20px rgba(99,102,241,0.4)',
+                  }}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Resetting password...
+                    </>
+                  ) : (
+                    'Reset Password'
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         <div className="flex items-center justify-center gap-1.5">

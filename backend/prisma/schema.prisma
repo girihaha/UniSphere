@@ -8,164 +8,155 @@ datasource db {
 }
 
 model User {
-  id        String   @id
-  name      String
-  email     String   @unique
-  password  String
-  branch    String
-  year      Int
-  role      String   @default("student")
-  avatarUrl String?
-  bio       String?
-  posts     Int      @default(0)
-  createdAt DateTime @default(now())
-
-  socialLinks        SocialLink[]
-  authoredPosts      Post[]             @relation("PostAuthor")
-  postLikes          PostLike[]
-  postSaves          PostSave[]
-  postComments       PostComment[]
+  id                 String              @id
+  name               String
+  email              String              @unique
+  password           String
+  branch             String
+  year               Int
+  role               String              @default("student")
+  avatarUrl          String?
+  bio                String?
+  posts              Int                 @default(0)
+  createdAt          DateTime            @default(now())
+  regNumber          String?
   clubAdmins         ClubAdmin[]
   clubFollowers      ClubFollower[]
   sentRequests       ConnectionRequest[] @relation("RequestSender")
   receivedRequests   ConnectionRequest[] @relation("RequestReceiver")
   networkNotes       NetworkNote[]
   notificationTarget Notification[]      @relation("NotificationTarget")
+  authoredPosts      Post[]              @relation("PostAuthor")
+  postComments       PostComment[]
+  postLikes          PostLike[]
+  postSaves          PostSave[]
+  socialLinks        SocialLink[]
 }
 
 model SocialLink {
-  id     Int    @id @default(autoincrement())
+  id     Int     @id @default(autoincrement())
   userId String
   type   String
   handle String
   url    String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Club {
-  id          Int      @id @default(autoincrement())
-  name        String
-  username    String   @unique
-  description String
-  category    String
-  avatar      String?
-  coverImage  String?
-  members     Int      @default(0)
-  followers   Int      @default(0)
-  verified    Boolean  @default(false)
-  status      String   @default("active")
-  isOfficial  Boolean  @default(false)
-  createdBy   String?
-  createdAt   DateTime @default(now())
-
-  tags              ClubTag[]
-  admins            ClubAdmin[]
-  followerRecords   ClubFollower[]
-  posts             Post[]
+  id              Int            @id @default(autoincrement())
+  name            String
+  avatar          String?
+  createdAt       DateTime       @default(now())
+  category        String
+  coverImage      String?
+  createdBy       String?
+  description     String
+  followers       Int            @default(0)
+  isOfficial      Boolean        @default(false)
+  members         Int            @default(0)
+  status          String         @default("active")
+  username        String         @unique
+  verified        Boolean        @default(false)
+  admins          ClubAdmin[]
+  followerRecords ClubFollower[]
+  tags            ClubTag[]
+  posts           Post[]
 }
 
 model ClubTag {
   id     Int    @id @default(autoincrement())
-  clubId  Int
-  value   String
-
-  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  clubId Int
+  value  String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 }
 
 model ClubAdmin {
   id     Int    @id @default(autoincrement())
-  clubId  Int
-  userId  String
-
-  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubId Int
+  userId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([clubId, userId])
 }
 
 model ClubFollower {
   id     Int    @id @default(autoincrement())
-  clubId  Int
-  userId  String
-
-  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubId Int
+  userId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([clubId, userId])
 }
 
 model Post {
-  id              Int      @id @default(autoincrement())
+  id              Int           @id @default(autoincrement())
   title           String
   content         String
-  summary         String?
   type            String
   kind            String
-  authorType      String
   authorId        String
+  clubId          Int?
+  status          String
+  createdAt       DateTime      @default(now())
+  adminReviewedAt String?
+  adminReviewedBy String?
+  author          String
   authorName      String
   authorRole      String
-  author          String
-  userAvatar      String?
+  authorType      String
   avatar          String?
-  image           String?
-  clubId          Int?
-  clubName        String?
   clubAvatar      String?
-  eventDate       String?
-  eventTime       String?
-  eventLocation   String?
-  registerLink    String?
-  status          String
-  submittedAt     String
-  clubReviewedBy  String?
+  clubName        String?
   clubReviewedAt  String?
-  adminReviewedBy String?
-  adminReviewedAt String?
+  clubReviewedBy  String?
+  eventDate       String?
+  eventLocation   String?
+  eventTime       String?
+  image           String?
+  registerLink    String?
   rejectionReason String?
-  createdAt       DateTime @default(now())
-
-  club     Club?          @relation(fields: [clubId], references: [id], onDelete: SetNull)
-  authorUser User         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  likes    PostLike[]
-  saves    PostSave[]
-  comments PostComment[]
+  submittedAt     String
+  summary         String?
+  userAvatar      String?
+  authorUser      User          @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  club            Club?         @relation(fields: [clubId], references: [id])
+  comments        PostComment[]
+  likes           PostLike[]
+  saves           PostSave[]
 }
 
 model PostLike {
   id     Int    @id @default(autoincrement())
-  postId  Int
-  userId  String
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId Int
+  userId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId])
 }
 
 model PostSave {
   id     Int    @id @default(autoincrement())
-  postId  Int
-  userId  String
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId Int
+  userId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId])
 }
 
 model PostComment {
   id           Int      @id @default(autoincrement())
-  postId        Int
-  authorId      String
-  authorName    String
-  authorAvatar  String?
-  text          String
-  createdAt     DateTime @default(now())
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId       Int
+  authorId     String
+  authorName   String
+  authorAvatar String?
+  text         String
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 }
 
 model ConnectionRequest {
@@ -174,9 +165,8 @@ model ConnectionRequest {
   toUserId   String
   message    String?
   createdAt  DateTime @default(now())
-
-  fromUser User @relation("RequestSender", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser   User @relation("RequestReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
+  fromUser   User     @relation("RequestSender", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser     User     @relation("RequestReceiver", fields: [toUserId], references: [id], onDelete: Cascade)
 
   @@unique([fromUserId, toUserId])
 }
@@ -195,8 +185,7 @@ model NetworkNote {
   authorId  String
   text      String
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -206,14 +195,41 @@ model Notification {
   message     String
   actorId     String
   actorName   String
-  actorRole   String?
   read        Boolean  @default(false)
-  timestamp   String   @default("Just now")
-  timestampMs BigInt
+  createdAt   DateTime @default(now())
   actionState String?
+  actorRole   String?
   postId      Int?
   postTitle   String?
-  createdAt   DateTime @default(now())
+  timestamp   String   @default("Just now")
+  timestampMs BigInt
+  user        User     @relation("NotificationTarget", fields: [userId], references: [id], onDelete: Cascade)
+}
 
-  user User @relation("NotificationTarget", fields: [userId], references: [id], onDelete: Cascade)
+model PasswordResetOtp {
+  id         Int       @id @default(autoincrement())
+  email      String
+  otpHash    String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
+model PendingSignup {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  regNumber String?
+  branch    String
+  year      Int
+  role      String   @default("student")
+  otpHash   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

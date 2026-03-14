@@ -1,145 +1,261 @@
-import { User, LoginPayload, SignupPayload, AuthResponse } from '../types';
 import { api, storeToken, clearToken } from '../lib/api';
+import type { SignupPayload, User } from '../types';
 
-const UNIVERSITY_EMAIL_DOMAIN = '@srmist.edu.in';
+type AuthResponse =
+  | {
+      user?: User;
+      token?: string;
+      error?: string;
+      data?: User;
+      message?: string;
+      requiresOtp?: boolean;
+      email?: string;
+      success?: boolean;
+    }
+  | User
+  | null;
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
+export type SignupStartResult = {
+  user?: User;
+  token?: string;
+  error?: string;
+  requiresOtp?: boolean;
+  email?: string;
+  message?: string;
+};
 
-function normalizeRegNumber(regNumber: string) {
-  return regNumber.trim().toUpperCase();
-}
+export type GenericAuthResult = {
+  success?: boolean;
+  error?: string;
+  message?: string;
+  user?: User;
+  token?: string;
+};
 
-function validateLoginInput(email: string, password: string): string | null {
-  const normalizedEmail = normalizeEmail(email);
+function extractUserFromResponse(result: AuthResponse): User | null {
+  if (!result) return null;
 
-  if (!normalizedEmail.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
-    return 'Please use your university email (@srmist.edu.in).';
-  }
+  if (typeof result === 'object') {
+    if ('user' in result && result.user) {
+      return result.user;
+    }
 
-  if (!password || password.length < 6) {
-    return 'Password must be at least 6 characters.';
+    if ('data' in result && result.data) {
+      return result.data;
+    }
+
+    if ('id' in result && 'email' in result) {
+      return result as User;
+    }
   }
 
   return null;
 }
 
-function validateSignupInput(data: SignupPayload): string | null {
-  const normalizedEmail = normalizeEmail(data.email);
-
-  if (!normalizedEmail.endsWith(UNIVERSITY_EMAIL_DOMAIN)) {
-    return 'Please use your university email (@srmist.edu.in).';
-  }
-
-  if (!data.name.trim()) return 'Full name is required.';
-  if (!data.regNumber.trim()) return 'Registration number is required.';
-  if (!data.branch.trim()) return 'Please select your branch.';
-  if (!data.year.trim()) return 'Please select your year.';
-  if (!data.password || data.password.length < 6) {
-    return 'Password must be at least 6 characters.';
-  }
-
-  return null;
+function extractTokenFromResponse(result: AuthResponse): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  if ('token' in result && typeof result.token === 'string') return result.token;
+  return undefined;
 }
 
-function normalizeUser(user: User): User {
-  return {
-    id: user.id,
-    name: user.name,
-    email: normalizeEmail(user.email),
-    regNumber: normalizeRegNumber(user.regNumber),
-    branch: user.branch,
-    degree: user.degree || 'B.Tech',
-    year: user.year,
-    cgpa: user.cgpa || '',
-    bio: user.bio || '',
-    avatarUrl: user.avatarUrl || '',
-    role: user.role,
-    connections: user.connections ?? 0,
-    posts: user.posts ?? 0,
-    notes: user.notes ?? 0,
-    clubs: user.clubs ?? 0,
-  };
+function extractMessageFromResponse(result: AuthResponse): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  if ('message' in result && typeof result.message === 'string') return result.message;
+  return undefined;
+}
+
+export async function signupUser(data: SignupPayload): Promise<SignupStartResult> {
+  try {
+    const result = await api.post<AuthResponse>('/auth/signup', data);
+
+    if (
+      result &&
+      typeof result === 'object' &&
+      'requiresOtp' in result &&
+      result.requiresOtp
+    ) {
+      return {
+        requiresOtp: true,
+        email: typeof result.email === 'string' ? result.email : data.email,
+        message: typeof result.message === 'string' ? result.message : 'OTP sent successfully',
+      };
+    }
+
+    const token = extractTokenFromResponse(result);
+    const user = extractUserFromResponse(result);
+
+    if (token) {
+      storeToken(token);
+    }
+
+    return {
+      user: user || undefined,
+      token,
+      message: extractMessageFromResponse(result),
+    };
+  } catch (err: any) {
+    return {
+      error: err?.message || 'Signup failed',
+    };
+  }
+}
+
+export async function verifySignupOtp(
+  email: string,
+  otp: string
+): Promise<GenericAuthResult> {
+  try {
+    const result = await api.post<AuthResponse>('/auth/signup/verify-otp', {
+      email,
+      otp,
+    });
+
+    const token = extractTokenFromResponse(result);
+    const user = extractUserFromResponse(result);
+
+    if (token) {
+      storeToken(token);
+    }
+
+    return {
+      success: true,
+      user: user || undefined,
+      token,
+      message: extractMessageFromResponse(result) || 'Signup verified successfully',
+    };
+  } catch (err: any) {
+    return {
+      error: err?.message || 'OTP verification failed',
+    };
+  }
+}
+
+export async function resendSignupOtp(email: string): Promise<GenericAuthResult> {
+  try {
+    const result = await api.post<AuthResponse>('/auth/signup/resend-otp', {
+      email,
+    });
+
+    return {
+      success: true,
+      message: extractMessageFromResponse(result) || 'OTP resent successfully',
+    };
+  } catch (err: any) {
+    return {
+      error: err?.message || 'Failed to resend signup OTP',
+    };
+  }
 }
 
 export async function loginUser(
   email: string,
   password: string
-): Promise<{ user?: User; error?: string }> {
-  const validationError = validateLoginInput(email, password);
-  if (validationError) {
-    return { error: validationError };
-  }
-
+): Promise<{ user?: User; token?: string; error?: string; message?: string }> {
   try {
-    const response = await api.post<AuthResponse>('/auth/login', {
-      email: normalizeEmail(email),
+    const result = await api.post<AuthResponse>('/auth/login', {
+      email,
       password,
-    } as LoginPayload);
+    });
 
-    if (!response.user?.id) {
-      return { error: 'Login failed: invalid user data returned by server.' };
+    const token = extractTokenFromResponse(result);
+    const user = extractUserFromResponse(result);
+
+    if (token) {
+      storeToken(token);
     }
 
-    if (response.token) {
-      storeToken(response.token);
-    }
-
-    return { user: normalizeUser(response.user) };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Login failed';
-    return { error: message };
+    return {
+      user: user || undefined,
+      token,
+      message: extractMessageFromResponse(result),
+    };
+  } catch (err: any) {
+    return {
+      error: err?.message || 'Login failed',
+    };
   }
 }
 
-export async function signupUser(
-  data: SignupPayload
-): Promise<{ user?: User; error?: string }> {
-  const validationError = validateSignupInput(data);
-  if (validationError) {
-    return { error: validationError };
-  }
-
+export async function requestForgotPasswordOtp(
+  email: string
+): Promise<GenericAuthResult> {
   try {
-    const response = await api.post<AuthResponse>('/auth/signup', {
-      name: data.name.trim(),
-      regNumber: normalizeRegNumber(data.regNumber),
-      email: normalizeEmail(data.email),
-      branch: data.branch.trim(),
-      year: data.year.trim(),
-      password: data.password,
+    const result = await api.post<AuthResponse>('/auth/forgot-password/request-otp', {
+      email,
     });
 
-    if (!response.user?.id) {
-      return { error: 'Signup failed: invalid user data returned by server.' };
-    }
+    return {
+      success: true,
+      message: extractMessageFromResponse(result) || 'OTP sent successfully',
+    };
+  } catch (err: any) {
+    return {
+      error: err?.message || 'Failed to send reset OTP',
+    };
+  }
+}
 
-    if (response.token) {
-      storeToken(response.token);
-    }
+export async function verifyForgotPasswordOtp(
+  email: string,
+  otp: string
+): Promise<GenericAuthResult> {
+  try {
+    const result = await api.post<AuthResponse>('/auth/forgot-password/verify-otp', {
+      email,
+      otp,
+    });
 
-    return { user: normalizeUser(response.user) };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Signup failed';
-    return { error: message };
+    return {
+      success: true,
+      message: extractMessageFromResponse(result) || 'OTP verified successfully',
+    };
+  } catch (err: any) {
+    return {
+      error: err?.message || 'Failed to verify reset OTP',
+    };
+  }
+}
+
+export async function resetPasswordWithOtp(
+  email: string,
+  otp: string,
+  newPassword: string
+): Promise<GenericAuthResult> {
+  try {
+    const result = await api.post<AuthResponse>('/auth/forgot-password/reset', {
+      email,
+      otp,
+      newPassword,
+    });
+
+    return {
+      success: true,
+      message: extractMessageFromResponse(result) || 'Password reset successfully',
+    };
+  } catch (err: any) {
+    return {
+      error: err?.message || 'Failed to reset password',
+    };
   }
 }
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const response = await api.get<{ user: User }>('/auth/me');
+    const result = await api.get<AuthResponse>('/auth/me');
+    const user = extractUserFromResponse(result);
 
-    if (!response.user?.id) {
+    if (!user) {
+      clearToken();
       return null;
     }
 
-    return normalizeUser(response.user);
+    return user;
   } catch {
+    clearToken();
     return null;
   }
 }
 
-export function logoutUser(): void {
+export function logoutUser() {
   clearToken();
 }

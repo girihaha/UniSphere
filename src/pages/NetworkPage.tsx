@@ -32,7 +32,6 @@ import Button from '../components/Button';
 import {
   getConnections,
   getConnectionRequests,
-  getDiscoverUsers,
   acceptConnectionRequest,
   rejectConnectionRequest,
   sendConnectionRequest,
@@ -41,7 +40,7 @@ import {
   getUserProfileById,
 } from '../services/networkService';
 import { useAuth } from '../context/AuthContext';
-import type { Connection, ConnectionRequest, DiscoverUser, NetworkNote } from '../types';
+import type { Connection, ConnectionRequest, NetworkNote } from '../types';
 
 const QR_PATTERN = [0, 1, 2, 3, 4, 5, 6, 7, 13, 14, 20, 21, 24, 27, 28, 31, 34, 35, 41, 42, 43, 44, 45, 46, 47, 48];
 const SCANNER_ELEMENT_ID = 'unisphere-qr-reader';
@@ -564,49 +563,6 @@ function RequestCard({
   );
 }
 
-function DiscoverCard({
-  user,
-  onConnect,
-  disabled = false,
-}: {
-  user: DiscoverUser;
-  onConnect: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div
-      className="rounded-3xl p-4"
-      style={{
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%)',
-        border: '1px solid rgba(255,255,255,0.09)',
-        backdropFilter: 'blur(20px)',
-      }}
-    >
-      <div className="flex items-center gap-3">
-        <Avatar src={user.avatar} name={user.name} size="md" />
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold text-white tracking-tight">{user.name}</p>
-          <p className="text-[11px] text-white/40 font-medium">
-            {user.branch} · {user.year}
-          </p>
-          <p className="text-[10px] text-primary-400 font-semibold mt-0.5">
-            {user.mutual} mutual connections
-          </p>
-        </div>
-        <Button
-          variant={user.requestSent ? 'secondary' : 'primary'}
-          size="sm"
-          icon={<UserPlus size={12} />}
-          onClick={onConnect}
-          disabled={disabled || user.requestSent}
-        >
-          {user.requestSent ? 'Sent' : 'Connect'}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 function NoteCard({ note }: { note: NetworkNote }) {
   return (
     <div
@@ -665,7 +621,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
   const [search, setSearch] = useState('');
   const [requests, setRequests] = useState<ConnectionRequest[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [discoverUsers, setDiscoverUsers] = useState<DiscoverUser[]>([]);
   const [notes, setNotes] = useState<NetworkNote[]>([]);
   const [newNote, setNewNote] = useState('');
   const [postingNote, setPostingNote] = useState(false);
@@ -710,23 +665,20 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
     setLoading(true);
 
     try {
-      const [requestsData, connectionsData, discoverData, notesData] = await Promise.all([
+      const [requestsData, connectionsData, notesData] = await Promise.all([
         getConnectionRequests(),
         getConnections(),
-        getDiscoverUsers(),
         getNetworkNotes(),
       ]);
 
       setRequests(requestsData);
       setConnections(connectionsData);
-      setDiscoverUsers(discoverData);
       setNotes(notesData);
       await refreshUser();
     } catch (error) {
       console.error('Failed to load network data:', error);
       setRequests([]);
       setConnections([]);
-      setDiscoverUsers([]);
       setNotes([]);
     } finally {
       setLoading(false);
@@ -1320,33 +1272,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
               <div className="px-5">
                 <p className="text-sm font-bold text-white mb-1">No notes yet</p>
                 <p className="text-xs text-white/35">Post one or connect with more people</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="px-4 mb-5">
-          <div className="flex items-center justify-between mb-3.5">
-            <div className="flex items-center gap-2">
-              <div className="w-1 h-4 rounded-full" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }} />
-              <span className="text-sm font-bold text-white tracking-tight">Discover Students</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            {discoverUsers.length > 0 ? (
-              discoverUsers.slice(0, 3).map((discoverUser) => (
-                <DiscoverCard
-                  key={discoverUser.id}
-                  user={discoverUser}
-                  onConnect={() => handleConnect(discoverUser.id)}
-                  disabled={sendingConnectionId === discoverUser.id}
-                />
-              ))
-            ) : (
-              <div className="py-6 text-center">
-                <p className="text-sm font-bold text-white mb-1">No suggestions right now</p>
-                <p className="text-xs text-white/35">You’re already connected to everyone we seeded</p>
               </div>
             )}
           </div>
