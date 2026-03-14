@@ -22,14 +22,11 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow non-browser tools / direct requests
-      if (!origin) {
-        return callback(null, true);
-      }
+      if (!origin) return callback(null, true);
 
       const normalizedOrigin = origin.replace(/\/$/, "");
-      const normalizedAllowedOrigins = allowedOrigins.map((item) =>
-        item.replace(/\/$/, "")
+      const normalizedAllowedOrigins = allowedOrigins.map((o) =>
+        o.replace(/\/$/, "")
       );
 
       if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
