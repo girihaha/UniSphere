@@ -23,6 +23,7 @@ type AppRoute =
   | { kind: 'login' }
   | { kind: 'signup' }
   | { kind: 'feed' }
+  | { kind: 'post'; postId: number }
   | { kind: 'network' }
   | { kind: 'clubs' }
   | { kind: 'club-profile'; clubId: number }
@@ -63,6 +64,11 @@ function parseRoute(pathname: string): AppRoute {
   if (path === '/admin/users') return { kind: 'adminusers' };
   if (path === '/admin/clubs') return { kind: 'adminclubs' };
   if (path === '/notifications') return { kind: 'notifications' };
+
+  const postMatch = path.match(/^\/post\/(\d+)$/);
+  if (postMatch) {
+    return { kind: 'post', postId: Number(postMatch[1]) };
+  }
 
   const clubMatch = path.match(/^\/clubs\/(\d+)$/);
   if (clubMatch) {
@@ -131,7 +137,7 @@ function MainApp() {
     if (isLoading) return;
 
     if (!user) {
-      if (route.kind !== 'login' && route.kind !== 'signup') {
+      if (route.kind !== 'login' && route.kind !== 'signup' && route.kind !== 'post') {
         navigate('/login', { replace: true });
       }
       return;
@@ -189,6 +195,14 @@ function MainApp() {
     switch (route.kind) {
       case 'feed':
         return <FeedPage onOpenNotifications={openNotifications} />;
+      case 'post':
+        return (
+          <FeedPage
+            onOpenNotifications={openNotifications}
+            sharedPostId={route.postId}
+            onSharedPostClose={() => navigate('/feed', { replace: true })}
+          />
+        );
       case 'network':
         return <NetworkPage onOpenNotifications={openNotifications} />;
       case 'clubs':

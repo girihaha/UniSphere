@@ -26,7 +26,8 @@ import NotificationBell from '../components/NotificationBell';
 import CommentsSheet from '../components/CommentsSheet';
 import { FeedCardSkeleton } from '../components/Skeleton';
 import { useFeed } from '../context/FeedContext';
-import { likePost, savePost, unlikePost, unsavePost } from '../services/feedService';
+import { sharePost } from '../lib/postShare';
+import { getPostById, likePost, savePost, unlikePost, unsavePost } from '../services/feedService';
 
 type FilterValue = 'general' | 'news' | 'clubs' | 'students';
 
@@ -356,7 +357,15 @@ function DetailView({
   );
 }
 
-function ShareToast({ visible }: { visible: boolean }) {
+function ShareToast({
+  visible,
+  message,
+  tone,
+}: {
+  visible: boolean;
+  message: string;
+  tone: 'success' | 'error';
+}) {
   return (
     <div
       className="fixed top-24 left-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold text-white"
@@ -364,14 +373,21 @@ function ShareToast({ visible }: { visible: boolean }) {
         transform: `translateX(-50%) translateY(${visible ? '0' : '-12px'})`,
         opacity: visible ? 1 : 0,
         transition: 'all 0.25s cubic-bezier(0.34,1.56,0.64,1)',
-        background: 'rgba(16,20,36,0.95)',
-        border: '1px solid rgba(255,255,255,0.12)',
+        background: tone === 'success' ? 'rgba(16,20,36,0.95)' : 'rgba(64,16,24,0.95)',
+        border:
+          tone === 'success'
+            ? '1px solid rgba(255,255,255,0.12)'
+            : '1px solid rgba(244,63,94,0.28)',
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         pointerEvents: 'none',
       }}
     >
-      <Link size={12} className="text-emerald-400" />
-      Link copied to clipboard
+      {tone === 'success' ? (
+        <Link size={12} className="text-emerald-400" />
+      ) : (
+        <X size={12} className="text-rose-300" />
+      )}
+      {message}
     </div>
   );
 }
@@ -590,7 +606,15 @@ function FeedCard({
   );
 }
 
-export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?: () => void }) {
+export default function FeedPage({
+  onOpenNotifications,
+  sharedPostId,
+  onSharedPostClose,
+}: {
+  onOpenNotifications?: () => void;
+  sharedPostId?: number;
+  onSharedPostClose?: () => void;
+}) {
   const { items: allItems, refreshFeed, isLoading } = useFeed();
   const [filter, setFilter] = useState<FilterValue>('general');
   const [interactions, setInteractions] = useState<Record<number, InteractionState>>({});
@@ -598,7 +622,15 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
   const [detailVisible, setDetailVisible] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsItem, setCommentsItem] = useState<FeedItem | null>(null);
-  const [shareToast, setShareToast] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<{
+    visible: boolean;
+    message: string;
+    tone: 'success' | 'error';
+  }>({
+    visible: false,
+    message: '',
+    tone: 'success',
+  });
   const [activeIndex, setActiveIndex] = useState(0);
   const pagingLockedRef = useRef(false);
   const wheelDeltaRef = useRef(0);
@@ -606,6 +638,8 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
   const touchStartYRef = useRef(0);
   const touchStartXRef = useRef(0);
   const touchLockedRef = useRef(false);
+  const sharedPostHandledRef = useRef<number | null>(null);
+  const shareToastTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (filter === 'general') {
@@ -636,6 +670,14 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
 
     setActiveIndex((current) => Math.min(current, displayedItems.length - 1));
   }, [displayedItems.length]);
+
+  useEffect(() => {
+    return () => {
+      if (shareToastTimeoutRef.current) {
+        window.clearTimeout(shareToastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const pageToIndex = useCallback(
     (nextIndex: number) => {
@@ -777,13 +819,93 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
 
   const closeDetail = useCallback(() => {
     setDetailVisible(false);
-    setTimeout(() => setDetailItem(null), 360);
+    setTimeout(() => {
+      setDetailItem(null);
+      if (sharedPostId && onSharedPostClose) {
+        onSharedPostClose();
+      }
+    }, 360);
+  }, [onSharedPostClose, sharedPostId]);
+
+  const showShareFeedback = useCallback((message: string, tone: 'success' | 'error') => {
+    if (shareToastTimeoutRef.current) {
+      window.clearTimeout(shareToastTimeoutRef.current);
+    }
+
+    setShareFeedback({
+      visible: true,
+      message,
+      tone,
+    });
+
+    shareToastTimeoutRef.current = window.setTimeout(() => {
+      setShareFeedback((current) => ({ ...current, visible: false }));
+    }, 2200);
   }, []);
 
-  const handleShare = useCallback(() => {
-    setShareToast(true);
-    setTimeout(() => setShareToast(false), 2200);
-  }, []);
+  const handleShare = useCallback(
+    async (item: FeedItem) => {
+      const result = await sharePost(item);
+
+      if (result.success) {
+        showShareFeedback(
+          result.mode === 'native-share' ? 'Post shared successfully' : 'Post link copied',
+          'success'
+        );
+        return;
+      }
+
+      if (result.cancelled) {
+        return;
+      }
+
+      showShareFeedback(result.error || 'Unable to share this post right now.', 'error');
+    },
+    [showShareFeedback]
+  );
+
+  useEffect(() => {
+    if (!sharedPostId) {
+      sharedPostHandledRef.current = null;
+      return;
+    }
+
+    if (sharedPostHandledRef.current === sharedPostId) {
+      return;
+    }
+
+    const matchingIndex = displayedItems.findIndex((item) => item.id === sharedPostId);
+    if (matchingIndex >= 0) {
+      sharedPostHandledRef.current = sharedPostId;
+      setActiveIndex(matchingIndex);
+      openDetail(displayedItems[matchingIndex]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSharedPost = async () => {
+      const post = await getPostById(sharedPostId);
+      if (cancelled) {
+        return;
+      }
+
+      if (!post) {
+        sharedPostHandledRef.current = sharedPostId;
+        showShareFeedback('Shared post not found or unavailable.', 'error');
+        return;
+      }
+
+      sharedPostHandledRef.current = sharedPostId;
+      openDetail(post);
+    };
+
+    void loadSharedPost();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayedItems, openDetail, sharedPostId, showShareFeedback]);
 
   const handleCloseCreateModal = async () => {
     setCreateOpen(false);
@@ -804,7 +926,11 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
 
   return (
     <div className="relative" style={{ height: '100dvh', overflow: 'hidden' }}>
-      <ShareToast visible={shareToast} />
+      <ShareToast
+        visible={shareFeedback.visible}
+        message={shareFeedback.message}
+        tone={shareFeedback.tone}
+      />
 
       <div
         onWheel={handleWheelNavigation}
@@ -849,7 +975,9 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
                   onToggle={(type) => toggle(item.id, type, getInteraction(item))}
                   onOpenDetail={() => openDetail(item)}
                   onOpenComments={() => setCommentsItem(item)}
-                  onShare={handleShare}
+                  onShare={() => {
+                    void handleShare(item);
+                  }}
                   index={index}
                   total={displayedItems.length}
                   distanceFromActive={index - activeIndex}
@@ -924,7 +1052,9 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
           onToggle={(type) => toggle(detailItem.id, type, getInteraction(detailItem))}
           onClose={closeDetail}
           onOpenComments={() => setCommentsItem(detailItem)}
-          onShare={handleShare}
+          onShare={() => {
+            void handleShare(detailItem);
+          }}
           visible={detailVisible}
         />
       )}

@@ -19,6 +19,7 @@ import Button from '../components/Button';
 import TagBadge from '../components/TagBadge';
 import CommentsSheet from '../components/CommentsSheet';
 import Avatar from '../components/Avatar';
+import { sharePost } from '../lib/postShare';
 import { getClubById } from '../services/clubService';
 import { savePost, unsavePost } from '../services/feedService';
 
@@ -185,7 +186,15 @@ export default function ClubProfilePage({
       )
   );
   const [commentsPostId, setCommentsPostId] = useState<number | null>(null);
-  const [shareToast, setShareToast] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<{
+    visible: boolean;
+    message: string;
+    tone: 'success' | 'error';
+  }>({
+    visible: false,
+    message: '',
+    tone: 'success',
+  });
   const [activeTab, setActiveTab] = useState<ClubTab>('posts');
 
   useEffect(() => {
@@ -266,9 +275,63 @@ export default function ClubProfilePage({
     }
   };
 
-  const handleShare = () => {
-    setShareToast(true);
-    setTimeout(() => setShareToast(false), 2200);
+  const showShareFeedback = (message: string, tone: 'success' | 'error') => {
+    setShareFeedback({
+      visible: true,
+      message,
+      tone,
+    });
+
+    window.setTimeout(() => {
+      setShareFeedback((current) => ({ ...current, visible: false }));
+    }, 2200);
+  };
+
+  const handleSharePost = async (post: Post) => {
+    const result = await sharePost(post);
+
+    if (result.success) {
+      showShareFeedback(
+        result.mode === 'native-share' ? 'Post shared successfully' : 'Post link copied',
+        'success'
+      );
+      return;
+    }
+
+    if (result.cancelled) {
+      return;
+    }
+
+    showShareFeedback(result.error || 'Unable to share this post right now.', 'error');
+  };
+
+  const handleShareClub = async () => {
+    const url = `${window.location.origin.replace(/\/$/, '')}/clubs/${clubData.id}`;
+    const shareData = {
+      title: clubData.name || 'UniSphere Club',
+      text: `${clubData.name} on UniSphere`,
+      url,
+    };
+
+    try {
+      if (
+        typeof navigator.share === 'function' &&
+        (typeof navigator.canShare !== 'function' || navigator.canShare(shareData))
+      ) {
+        await navigator.share(shareData);
+        showShareFeedback('Club shared successfully', 'success');
+        return;
+      }
+
+      await navigator.clipboard.writeText(url);
+      showShareFeedback('Club link copied', 'success');
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+
+      showShareFeedback('Unable to share this club right now.', 'error');
+    }
   };
 
   const commentsPost =
@@ -276,19 +339,27 @@ export default function ClubProfilePage({
 
   return (
     <div className="content-area fade-in">
-      {shareToast && (
+      {shareFeedback.visible && (
         <div
           className="fixed top-24 left-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold text-white"
           style={{
             transform: 'translateX(-50%)',
-            background: 'rgba(16,20,36,0.95)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            background:
+              shareFeedback.tone === 'success' ? 'rgba(16,20,36,0.95)' : 'rgba(64,16,24,0.95)',
+            border:
+              shareFeedback.tone === 'success'
+                ? '1px solid rgba(255,255,255,0.12)'
+                : '1px solid rgba(244,63,94,0.28)',
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
             animation: 'scaleIn 0.25s ease forwards',
           }}
         >
-          <Link size={12} className="text-emerald-400" />
-          Link copied to clipboard
+          {shareFeedback.tone === 'success' ? (
+            <Link size={12} className="text-emerald-400" />
+          ) : (
+            <MoreHorizontal size={12} className="text-rose-300" />
+          )}
+          {shareFeedback.message}
         </div>
       )}
 
@@ -308,11 +379,13 @@ export default function ClubProfilePage({
             >
               <ArrowLeft size={17} strokeWidth={2.5} />
             </button>
-            <button
-              onClick={handleShare}
-              className="glass-dark p-2.5 rounded-2xl text-white/60 hover:text-white transition-colors active:scale-90"
-              style={{ border: '1px solid rgba(255,255,255,0.12)' }}
-            >
+              <button
+                onClick={() => {
+                  void handleShareClub();
+                }}
+                className="glass-dark p-2.5 rounded-2xl text-white/60 hover:text-white transition-colors active:scale-90"
+                style={{ border: '1px solid rgba(255,255,255,0.12)' }}
+              >
               <MoreHorizontal size={17} />
             </button>
           </div>
@@ -381,7 +454,9 @@ export default function ClubProfilePage({
 
             <div className="flex items-center gap-3 mt-4 pt-3.5 border-t border-white/7">
               <button
-                onClick={handleShare}
+                onClick={() => {
+                  void handleShareClub();
+                }}
                 className="flex items-center gap-1.5 text-xs font-semibold text-primary-400 hover:text-primary-300 transition-colors active:scale-95"
               >
                 <Share2 size={13} />
@@ -585,7 +660,9 @@ export default function ClubProfilePage({
                           </button>
 
                           <button
-                            onClick={handleShare}
+                            onClick={() => {
+                              void handleSharePost(post);
+                            }}
                             className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl text-white/35 hover:text-white/60 hover:bg-white/5 transition-all active:scale-95"
                           >
                             <Share2 size={13} strokeWidth={2.5} />
