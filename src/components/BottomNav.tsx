@@ -16,17 +16,9 @@ const tabs: { id: Tab; label: string; icon: typeof Hash }[] = [
 
 export default function BottomNav({ active, onChange }: BottomNavProps) {
   return (
-    <div
-      className="fixed bottom-0 z-30 flex justify-center pointer-events-none"
-      style={{
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '100%',
-        maxWidth: '430px',
-      }}
-    >
+    <div className="fixed bottom-0 left-1/2 z-30 flex w-full max-w-[430px] -translate-x-1/2 justify-center pointer-events-none lg:bottom-auto lg:left-6 lg:top-1/2 lg:w-auto lg:max-w-none lg:translate-x-0 lg:-translate-y-1/2">
       <nav
-        className="pointer-events-auto mx-4 mb-5 rounded-4xl px-2 py-2 flex items-center w-full"
+        className="pointer-events-auto mx-4 mb-5 rounded-4xl px-2 py-2 flex items-center w-full lg:mx-0 lg:mb-0 lg:w-[88px] lg:max-w-none lg:flex-col lg:px-2 lg:py-3"
         style={{
           background: 'rgba(10, 14, 26, 0.82)',
           backdropFilter: 'blur(32px) saturate(160%)',
@@ -44,7 +36,7 @@ export default function BottomNav({ active, onChange }: BottomNavProps) {
               key={id}
               onClick={() => onChange(id)}
               className="
-                flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1
+                flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 lg:w-full lg:flex-none lg:gap-1.5 lg:py-3
                 rounded-3xl transition-all duration-250 active:scale-95
               "
             >

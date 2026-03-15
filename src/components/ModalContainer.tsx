@@ -39,7 +39,7 @@ export default function ModalContainer({
       />
 
       <div
-        className="relative z-10 rounded-t-4xl w-full max-w-[430px] overflow-hidden"
+        className="relative z-10 rounded-t-4xl w-full max-w-[430px] lg:max-w-[760px] overflow-hidden"
         style={{
           background: '#0d1224',
           border: '1px solid rgba(255,255,255,0.1)',

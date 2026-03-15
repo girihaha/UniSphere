@@ -251,7 +251,7 @@ function MainApp() {
 
   return (
     <div className="gradient-bg min-h-dvh">
-      <div className="page-container relative">
+      <div className="page-container page-container--app relative">
         <div key={path} className="slide-up">
           {renderPage()}
         </div>

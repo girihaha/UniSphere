@@ -117,7 +117,7 @@ export default function CommentsSheet({
       onClick={handleClose}
     >
       <div
-        className="mx-auto w-full max-w-[430px] flex flex-col"
+        className="mx-auto w-full max-w-[430px] lg:max-w-[760px] flex flex-col"
         style={{
           background: '#0d1224',
           borderRadius: '28px 28px 0 0',

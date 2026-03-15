@@ -484,7 +484,7 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
       onClick={handleClose}
     >
       <div
-        className="flex-1 overflow-y-auto mx-auto w-full max-w-[430px] flex flex-col"
+        className="flex-1 overflow-y-auto mx-auto w-full max-w-[430px] lg:max-w-[760px] flex flex-col"
         style={{ paddingBottom: 'calc(28px + env(safe-area-inset-bottom))' }}
         onClick={(e) => e.stopPropagation()}
       >

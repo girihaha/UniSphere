@@ -98,8 +98,20 @@
     overflow-x: hidden;
   }
 
+  .page-container--auth {
+    max-width: 430px;
+  }
+
+  .page-container--app {
+    max-width: 430px;
+  }
+
   .content-area {
     padding-bottom: 108px;
+  }
+
+  .desktop-page-shell {
+    width: 100%;
   }
 
   /* ─── Animations ─── */
@@ -167,6 +179,26 @@
   /* ─── Smooth tab transitions ─── */
   .tab-content {
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@media (min-width: 1024px) {
+  @layer utilities {
+    .page-container--app {
+      max-width: min(1440px, calc(100vw - 48px));
+      padding-left: 116px;
+      padding-right: 28px;
+    }
+
+    .content-area {
+      padding-bottom: 40px;
+    }
+
+    .desktop-page-shell {
+      max-width: 1120px;
+      margin-left: auto;
+      margin-right: auto;
+    }
   }
 }
 

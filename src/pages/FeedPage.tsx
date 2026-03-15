@@ -918,14 +918,14 @@ export default function FeedPage({
 
   if (isLoading) {
     return (
-      <div className="relative" style={{ height: '100dvh', overflow: 'hidden' }}>
+      <div className="relative mx-auto w-full lg:max-w-[620px]" style={{ height: '100dvh', overflow: 'hidden' }}>
         <FeedCardSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="relative" style={{ height: '100dvh', overflow: 'hidden' }}>
+    <div className="relative mx-auto w-full lg:max-w-[620px]" style={{ height: '100dvh', overflow: 'hidden' }}>
       <ShareToast
         visible={shareFeedback.visible}
         message={shareFeedback.message}

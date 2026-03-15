@@ -264,7 +264,7 @@ export default function ClubsPage({
 
   if (loading) {
     return (
-      <div className="content-area fade-in">
+      <div className="content-area desktop-page-shell fade-in">
         <div className="px-5 pt-16 pb-4">
           <div className="h-8 w-20 shimmer rounded-xl mb-6" />
           <div className="grid grid-cols-1 gap-4">
@@ -278,7 +278,7 @@ export default function ClubsPage({
   }
 
   return (
-    <div className="content-area fade-in">
+    <div className="content-area desktop-page-shell fade-in">
       <div className="relative pt-14 pb-0 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-primary-600/8 via-transparent to-transparent pointer-events-none" />
         <div className="px-5 relative">

@@ -957,14 +957,14 @@ export default function ProfilePage({
 
   if (loading) {
     return (
-      <div className="content-area fade-in flex items-center justify-center min-h-[60vh]">
+      <div className="content-area desktop-page-shell fade-in flex items-center justify-center min-h-[60vh]">
         <div className="text-white/60 text-sm font-medium">Loading profile...</div>
       </div>
     );
   }
 
   return (
-    <div className="content-area fade-in">
+    <div className="content-area desktop-page-shell fade-in">
       <input
         ref={fileInputRef}
         type="file"

@@ -1039,7 +1039,7 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
 
   if (loading) {
     return (
-      <div className="content-area fade-in">
+      <div className="content-area desktop-page-shell fade-in">
         <div className="px-5 pt-16 pb-4">
           <div className="h-8 w-24 shimmer rounded-xl mb-4" />
           <div className="h-28 shimmer rounded-3xl mb-5" />
@@ -1057,7 +1057,7 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
     <>
       <FeedbackToast visible={toastVisible} type={toastType} message={toastMessage} />
 
-      <div className="content-area fade-in">
+      <div className="content-area desktop-page-shell fade-in">
         <div className="relative px-5 pt-14 pb-1">
           <div className="absolute inset-0 bg-gradient-to-b from-primary-600/7 to-transparent pointer-events-none" />
           <div className="relative mb-5">
