@@ -3,6 +3,11 @@ import nodemailer from "nodemailer";
 const MAIL_USER = (process.env.MAIL_USER || "").trim();
 const RAW_MAIL_PASS = process.env.MAIL_PASS || "";
 const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME || "UniSphere";
+const MAIL_HOST = (process.env.MAIL_HOST || "").trim();
+const MAIL_PORT = Number(process.env.MAIL_PORT || 0);
+const MAIL_SECURE = (process.env.MAIL_SECURE || "").trim().toLowerCase();
+const MAIL_REQUIRE_TLS = (process.env.MAIL_REQUIRE_TLS || "").trim().toLowerCase();
+const MAIL_AUTH_METHOD = (process.env.MAIL_AUTH_METHOD || "").trim();
 const MAIL_CONNECTION_TIMEOUT_MS = 10_000;
 const MAIL_SOCKET_TIMEOUT_MS = 20_000;
 const MAIL_SEND_TIMEOUT_MS = 15_000;
@@ -10,6 +15,13 @@ const GMAIL_SMTP_HOST = "smtp.gmail.com";
 
 function normalizeMailPassword(password: string) {
   return password.replace(/\s+/g, "");
+}
+
+function parseBoolean(value: string | undefined, defaultValue: boolean) {
+  if (!value) return defaultValue;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return defaultValue;
 }
 
 const MAIL_PASS = normalizeMailPassword(RAW_MAIL_PASS);
@@ -82,6 +94,8 @@ function isConnectionFailure(error: unknown) {
 }
 
 function createTransporter(config: {
+  label: string;
+  host: string;
   port: number;
   secure: boolean;
   requireTLS: boolean;
@@ -96,14 +110,15 @@ function createTransporter(config: {
   }
 
   console.log("[MAILER] Using Gmail SMTP transporter", {
-    host: GMAIL_SMTP_HOST,
+    transport: config.label,
+    host: config.host,
     port: config.port,
     secure: config.secure,
     user: maskEmail(MAIL_USER),
   });
 
   return nodemailer.createTransport({
-    host: GMAIL_SMTP_HOST,
+    host: config.host,
     port: config.port,
     secure: config.secure,
     requireTLS: config.requireTLS,
@@ -111,12 +126,12 @@ function createTransporter(config: {
       user: MAIL_USER,
       pass: MAIL_PASS,
     },
-    authMethod: "LOGIN",
+    ...(MAIL_AUTH_METHOD ? { authMethod: MAIL_AUTH_METHOD } : {}),
     connectionTimeout: MAIL_CONNECTION_TIMEOUT_MS,
     greetingTimeout: MAIL_CONNECTION_TIMEOUT_MS,
     socketTimeout: MAIL_SOCKET_TIMEOUT_MS,
     tls: {
-      servername: GMAIL_SMTP_HOST,
+      servername: config.host,
     },
   });
 }
@@ -150,20 +165,40 @@ type OtpMailResult =
       error: string;
     };
 
-const GMAIL_TRANSPORT_OPTIONS = [
+const DEFAULT_GMAIL_TRANSPORT_OPTIONS = [
   {
     label: "gmail-smtps-465",
+    host: GMAIL_SMTP_HOST,
     port: 465,
     secure: true,
     requireTLS: false,
   },
   {
     label: "gmail-starttls-587",
+    host: GMAIL_SMTP_HOST,
     port: 587,
     secure: false,
     requireTLS: true,
   },
 ] as const;
+
+const CUSTOM_MAIL_TRANSPORT_OPTIONS =
+  MAIL_HOST && MAIL_PORT
+    ? [
+        {
+          label: "custom-smtp",
+          host: MAIL_HOST,
+          port: MAIL_PORT,
+          secure: parseBoolean(MAIL_SECURE, MAIL_PORT === 465),
+          requireTLS: parseBoolean(MAIL_REQUIRE_TLS, MAIL_PORT === 587),
+        },
+      ]
+    : [];
+
+const MAIL_TRANSPORT_OPTIONS =
+  CUSTOM_MAIL_TRANSPORT_OPTIONS.length > 0
+    ? CUSTOM_MAIL_TRANSPORT_OPTIONS
+    : DEFAULT_GMAIL_TRANSPORT_OPTIONS;
 
 export async function sendOtpMail(params: {
   to: string;
@@ -213,8 +248,8 @@ export async function sendOtpMail(params: {
     </div>
   `;
 
-  for (let index = 0; index < GMAIL_TRANSPORT_OPTIONS.length; index += 1) {
-    const option = GMAIL_TRANSPORT_OPTIONS[index];
+  for (let index = 0; index < MAIL_TRANSPORT_OPTIONS.length; index += 1) {
+    const option = MAIL_TRANSPORT_OPTIONS[index];
     const transporter = createTransporter(option);
 
     if (!transporter) {
@@ -246,7 +281,7 @@ export async function sendOtpMail(params: {
         transport: option.label,
       });
 
-      const hasNextOption = index < GMAIL_TRANSPORT_OPTIONS.length - 1;
+      const hasNextOption = index < MAIL_TRANSPORT_OPTIONS.length - 1;
       if (!hasNextOption || !isConnectionFailure(error)) {
         return {
           success: false,
@@ -254,9 +289,9 @@ export async function sendOtpMail(params: {
         };
       }
 
-      console.warn("[MAILER] Retrying OTP mail with alternate Gmail SMTP transport", {
+      console.warn("[MAILER] Retrying OTP mail with alternate SMTP transport", {
         fromTransport: option.label,
-        toTransport: GMAIL_TRANSPORT_OPTIONS[index + 1].label,
+        toTransport: MAIL_TRANSPORT_OPTIONS[index + 1].label,
       });
     }
   }
