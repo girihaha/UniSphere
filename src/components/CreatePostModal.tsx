@@ -140,6 +140,7 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('');
   const [eventLocation, setEventLocation] = useState('');
+  const [ctaLabel, setCtaLabel] = useState('');
   const [regLink, setRegLink] = useState('');
 
   const [showPreview, setShowPreview] = useState(false);
@@ -254,6 +255,17 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
       if (!eventLocation.trim()) errs.eventLocation = 'Event location is required.';
     }
 
+    if (regLink.trim()) {
+      try {
+        const parsedUrl = new URL(regLink.trim());
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+          errs.registerLink = 'Use a valid http or https URL.';
+        }
+      } catch {
+        errs.registerLink = 'Use a valid URL.';
+      }
+    }
+
     return errs;
   };
 
@@ -306,13 +318,13 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
       content: description || 'No content.',
       image: imagePreview || PEXELS_PLACEHOLDERS[postType],
       eventDetails:
-        postKind === 'event'
+        postKind === 'event' || regLink
           ? {
-              date: eventDate || 'TBD',
-              time: eventTime || 'TBD',
-              location: eventLocation || 'TBD',
+              date: postKind === 'event' ? eventDate || 'TBD' : undefined,
+              time: postKind === 'event' ? eventTime || 'TBD' : undefined,
+              location: postKind === 'event' ? eventLocation || 'TBD' : undefined,
               seats: null,
-              registerLabel: regLink ? 'Register' : 'Learn More',
+              registerLabel: regLink ? ctaLabel.trim() || 'Register Now' : undefined,
               registerLink: regLink || undefined,
             }
           : undefined,
@@ -348,7 +360,8 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
         eventDate: postKind === 'event' ? eventDate.trim() : undefined,
         eventTime: postKind === 'event' ? eventTime.trim() : undefined,
         eventLocation: postKind === 'event' ? eventLocation.trim() : undefined,
-        registerLink: postKind === 'event' ? regLink.trim() : undefined,
+        registerLabel: regLink.trim() ? ctaLabel.trim() || 'Register Now' : undefined,
+        registerLink: regLink.trim() || undefined,
         imageFile,
       });
 
@@ -403,6 +416,7 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
     setEventDate('');
     setEventTime('');
     setEventLocation('');
+    setCtaLabel('');
     setRegLink('');
 
     setShowPreview(false);
@@ -894,6 +908,24 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
                         {fieldError('eventLocation')}
                       </div>
 
+                    </div>
+                  </>
+                )}
+
+              {sectionCard(
+                <>
+                  {label('Optional CTA')}
+                  <div className="flex flex-col gap-3">
+                    <input
+                      type="text"
+                      value={ctaLabel}
+                      onChange={(e) => setCtaLabel(e.target.value)}
+                      placeholder="Button label (e.g. Register Now)"
+                      className={inputCls}
+                      style={inputStyle()}
+                    />
+
+                    <div>
                       <div className="relative">
                         <Link2
                           size={14}
@@ -902,15 +934,20 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
                         <input
                           type="url"
                           value={regLink}
-                          onChange={(e) => setRegLink(e.target.value)}
-                          placeholder="Registration link (optional)"
+                          onChange={(e) => {
+                            setRegLink(e.target.value);
+                            setErrors((p) => ({ ...p, registerLink: '' }));
+                          }}
+                          placeholder="CTA URL (optional)"
                           className={`${inputCls} pl-10`}
-                          style={inputStyle()}
+                          style={inputStyle(!!errors.registerLink)}
                         />
                       </div>
+                      {fieldError('registerLink')}
                     </div>
-                  </>
-                )}
+                  </div>
+                </>
+              )}
 
               {submitError && (
                 <div

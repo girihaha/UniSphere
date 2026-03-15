@@ -44,6 +44,16 @@ export async function getSavedPosts(): Promise<Post[]> {
   }
 }
 
+export async function getMyPosts(): Promise<Post[]> {
+  try {
+    const response = await api.get<PaginatedResponse<Post>>('/posts/mine');
+    return response.data;
+  } catch (err) {
+    console.error('getMyPosts error:', err);
+    return [];
+  }
+}
+
 export async function createPost(
   payload: CreatePostPayload
 ): Promise<{ post?: Post; message?: string; error?: string }> {
@@ -84,6 +94,10 @@ export async function createPost(
 
     if (payload.registerLink?.trim()) {
       formData.append('registerLink', payload.registerLink.trim());
+    }
+
+    if (payload.registerLabel?.trim()) {
+      formData.append('registerLabel', payload.registerLabel.trim());
     }
 
     if (payload.imageFile) {

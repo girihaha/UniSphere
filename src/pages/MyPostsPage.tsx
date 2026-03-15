@@ -29,6 +29,11 @@ function PostDetailSheet({
   isDeleting: boolean;
 }) {
   const item = post.post;
+  const handleOpenCta = () => {
+    if (item.eventDetails?.registerLink) {
+      window.open(item.eventDetails.registerLink, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   return (
     <div
@@ -95,23 +100,43 @@ function PostDetailSheet({
               }}
             >
               <p className="text-[10px] font-bold text-white/25 uppercase tracking-wider mb-3">
-                Event Details
+                {item.kind === 'event' ? 'Event Details' : 'Action'}
               </p>
 
               <div className="flex flex-col gap-2 text-[12px] text-white/50">
-                <div className="flex items-center gap-2">
-                  <Calendar size={11} className="text-white/25" />
-                  {item.eventDetails.date}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock size={11} className="text-white/25" />
-                  {item.eventDetails.time}
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin size={11} className="text-white/25" />
-                  {item.eventDetails.location}
-                </div>
+                {item.eventDetails.date && (
+                  <div className="flex items-center gap-2">
+                    <Calendar size={11} className="text-white/25" />
+                    {item.eventDetails.date}
+                  </div>
+                )}
+                {item.eventDetails.time && (
+                  <div className="flex items-center gap-2">
+                    <Clock size={11} className="text-white/25" />
+                    {item.eventDetails.time}
+                  </div>
+                )}
+                {item.eventDetails.location && (
+                  <div className="flex items-center gap-2">
+                    <MapPin size={11} className="text-white/25" />
+                    {item.eventDetails.location}
+                  </div>
+                )}
               </div>
+
+              {item.eventDetails.registerLink && (
+                <button
+                  type="button"
+                  onClick={handleOpenCta}
+                  className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.98]"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    boxShadow: '0 6px 18px rgba(99,102,241,0.28)',
+                  }}
+                >
+                  {item.eventDetails.registerLabel || 'Register Now'}
+                </button>
+              )}
             </div>
           )}
 
@@ -236,14 +261,32 @@ function MyPostCard({ post, onView }: { post: PendingPost; onView: () => void })
       }}
     >
       <div className="relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0">
-        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/20" />
+        {item.image ? (
+          <>
+            <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/20" />
+          </>
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center text-white/35"
+            style={{
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(139,92,246,0.14) 100%)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <FileEdit size={16} />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">
         <h3 className="text-[13px] font-bold text-white leading-snug line-clamp-2 mb-1.5">
           {item.title}
         </h3>
+
+        <p className="text-[11px] text-white/42 leading-relaxed line-clamp-2 mb-2">
+          {item.summary || item.content || 'No description available.'}
+        </p>
 
         <div className="flex items-center gap-2 flex-wrap">
           <TagBadge label={item.category} variant={item.categoryTag} dot size="sm" />

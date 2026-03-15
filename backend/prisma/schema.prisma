@@ -115,6 +115,7 @@ model Post {
   eventLocation   String?
   eventTime       String?
   image           String?
+  registerLabel   String?
   registerLink    String?
   rejectionReason String?
   submittedAt     String

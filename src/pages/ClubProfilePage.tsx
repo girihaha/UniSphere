@@ -14,7 +14,7 @@ import {
   FileText,
   Sparkles,
 } from 'lucide-react';
-import type { Club, Post } from '../types';
+import type { Post } from '../types';
 import Button from '../components/Button';
 import TagBadge from '../components/TagBadge';
 import CommentsSheet from '../components/CommentsSheet';
@@ -542,6 +542,25 @@ export default function ClubProfilePage({
                               </p>
                             )}
                           </div>
+                        )}
+
+                        {post.eventDetails?.registerLink && (
+                          <button
+                            onClick={() =>
+                              window.open(
+                                post.eventDetails?.registerLink,
+                                '_blank',
+                                'noopener,noreferrer'
+                              )
+                            }
+                            className="mt-3 w-full rounded-2xl py-2.5 text-[11px] font-bold text-white transition-all active:scale-[0.98]"
+                            style={{
+                              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                              boxShadow: '0 6px 16px rgba(99,102,241,0.24)',
+                            }}
+                          >
+                            {post.eventDetails.registerLabel || 'Register Now'}
+                          </button>
                         )}
 
                         <div className="flex items-center gap-1 mt-3.5 pt-3 border-t border-white/7">

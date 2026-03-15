@@ -13,6 +13,7 @@ import {
   deleteOwnedPost,
   deleteCommentOnPost,
   getSinglePost,
+  listMyPosts,
   listSavedPosts,
   likeSinglePost,
   listAdminReviewQueue,
@@ -85,6 +86,7 @@ router.patch(
 /* ---------------- FEED ---------------- */
 
 router.get("/", requireAuth, listPosts);
+router.get("/mine", requireAuth, listMyPosts);
 router.get("/saved", requireAuth, listSavedPosts);
 router.post("/", requireAuth, upload.single("image"), createNewPost);
 router.delete("/:id", requireAuth, deleteOwnedPost);

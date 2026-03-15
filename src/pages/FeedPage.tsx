@@ -255,7 +255,7 @@ function DetailView({
             ))}
           </div>
 
-          {item.eventDetails && (
+          {item.kind === 'event' && item.eventDetails && (
             <div
               className="rounded-3xl p-4 mb-5"
               style={{
@@ -307,15 +307,13 @@ function DetailView({
                 )}
               </div>
 
-              <Button
-                variant="primary"
-                size="md"
-                fullWidth
-                onClick={handleOpenRegisterLink}
-              >
-                {item.eventDetails.registerLabel || 'Learn More'}
-              </Button>
             </div>
+          )}
+
+          {item.eventDetails?.registerLink && (
+            <Button variant="primary" size="md" fullWidth onClick={handleOpenRegisterLink}>
+              {item.eventDetails.registerLabel || 'Register Now'}
+            </Button>
           )}
 
           <div
@@ -425,7 +423,13 @@ function FeedCard({
   return (
     <div
       className="relative flex-shrink-0"
-      style={{ height: '100dvh', scrollSnapAlign: 'start' }}
+      style={{
+        height: '100dvh',
+        scrollSnapAlign: 'start',
+        scrollSnapStop: 'always',
+        transition: 'transform 220ms ease, opacity 220ms ease',
+        willChange: 'transform',
+      }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -675,8 +679,12 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
       <div
         style={{
           height: '100%',
-          overflowY: 'scroll',
-          scrollSnapType: 'y mandatory',
+          overflowY: 'auto',
+          scrollSnapType: 'y proximity',
+          scrollBehavior: 'smooth',
+          overscrollBehaviorY: 'contain',
+          scrollPaddingTop: '8px',
+          scrollPaddingBottom: '8px',
           WebkitOverflowScrolling: 'touch',
         }}
       >

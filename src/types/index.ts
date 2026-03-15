@@ -285,6 +285,7 @@ export interface CreatePostPayload {
   eventDate?: string;
   eventTime?: string;
   eventLocation?: string;
+  registerLabel?: string;
   registerLink?: string;
 }
 

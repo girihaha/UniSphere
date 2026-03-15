@@ -14,6 +14,7 @@ export interface EventMeta {
   date?: string;
   time?: string;
   location?: string;
+  registerLabel?: string;
   registerLink?: string;
 }
 

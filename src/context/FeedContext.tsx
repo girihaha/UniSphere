@@ -82,7 +82,7 @@ function normalizeEventDetails(post: any) {
   };
 }
 
-function normalizePost(post: any): Post {
+export function normalizePost(post: any): Post {
   const content = post.content || '';
   const summary = buildSummary(post, content);
 

@@ -7,12 +7,13 @@ import {
   useCallback,
 } from 'react';
 import { ModerationItem, Post, PostStatus, WorkflowStep } from '../types';
-import { useFeed } from './FeedContext';
+import { normalizePost, useFeed } from './FeedContext';
 import { useAuth } from './AuthContext';
 import {
   approvePostAtAdminLevel,
   approvePostAtClubLevel,
   deletePost as deletePostService,
+  getMyPosts as getMyPostsService,
   getAdminReviewQueue,
   getClubReviewQueue,
   rejectPostAtAdminLevel,
@@ -83,16 +84,17 @@ function getCurrentStep(status: PostStatus): 'club_review' | 'admin_review' | 'p
 }
 
 function toModerationItem(post: Post): ModerationItem {
-  const status: PostStatus = post.status ?? 'pending_club_review';
+  const normalizedPost = normalizePost(post);
+  const status: PostStatus = normalizedPost.status ?? 'pending_club_review';
 
   return {
-    id: post.id,
-    post,
+    id: normalizedPost.id,
+    post: normalizedPost,
     status,
-    submittedAt: formatSubmittedAt(post.submittedAt),
-    submittedBy: post.authorName || post.author || 'Unknown User',
-    submittedByRole: post.authorRole || 'Student',
-    rejectionReason: post.rejectionReason,
+    submittedAt: formatSubmittedAt(normalizedPost.submittedAt),
+    submittedBy: normalizedPost.authorName || normalizedPost.author || 'Unknown User',
+    submittedByRole: normalizedPost.authorRole || 'Student',
+    rejectionReason: normalizedPost.rejectionReason,
     workflow: buildWorkflow(status),
     currentStep: getCurrentStep(status),
   };
@@ -117,6 +119,7 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
 
     try {
       let queue: Post[] = [];
+      const myPostsData = await getMyPostsService();
 
       if (user.role === 'super_admin') {
         queue = await getAdminReviewQueue();
@@ -129,12 +132,7 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
       const moderationItems = queue.map(toModerationItem);
 
       setPendingPosts(moderationItems);
-      setMyPosts((prev) => {
-        const localOnly = prev.filter(
-          (item) => !moderationItems.some((queueItem) => queueItem.id === item.id)
-        );
-        return [...moderationItems.filter((item) => item.post.authorId === user.id), ...localOnly];
-      });
+      setMyPosts((myPostsData || []).map(toModerationItem));
     } catch (error) {
       console.error('Failed to refresh moderation:', error);
       setPendingPosts([]);
@@ -148,16 +146,17 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
   }, [refreshModeration]);
 
   const submitForReview = useCallback((item: Post, authorName: string, authorRole: string) => {
-    const status: PostStatus = item.status ?? 'pending_club_review';
+    const normalizedPost = normalizePost(item);
+    const status: PostStatus = normalizedPost.status ?? 'pending_club_review';
 
     const moderationItem: ModerationItem = {
-      id: item.id,
-      post: item,
+      id: normalizedPost.id,
+      post: normalizedPost,
       status,
-      submittedAt: formatSubmittedAt(item.submittedAt),
-      submittedBy: authorName,
-      submittedByRole: authorRole,
-      rejectionReason: item.rejectionReason,
+      submittedAt: formatSubmittedAt(normalizedPost.submittedAt),
+      submittedBy: normalizedPost.authorName || authorName,
+      submittedByRole: normalizedPost.authorRole || authorRole,
+      rejectionReason: normalizedPost.rejectionReason,
       workflow: buildWorkflow(status),
       currentStep: getCurrentStep(status),
     };

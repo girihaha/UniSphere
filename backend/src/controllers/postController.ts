@@ -12,6 +12,7 @@ import {
   getPendingAdminReviewPosts,
   getPendingClubReviewPosts,
   getPostById,
+  getPostsByAuthor,
   getPosts,
   getSavedPosts,
   likePost,
@@ -109,6 +110,21 @@ export async function listSavedPosts(req: AuthRequest, res: Response) {
   });
 }
 
+export async function listMyPosts(req: AuthRequest, res: Response) {
+  if (!req.user?.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const posts = await getPostsByAuthor(req.user.userId);
+
+  return res.status(200).json({
+    data: posts,
+    page: 1,
+    limit: posts.length,
+    total: posts.length,
+  });
+}
+
 export async function createNewPost(req: AuthRequest, res: Response) {
   if (!req.user?.userId) {
     return res.status(401).json({ message: "Unauthorized" });
@@ -120,9 +136,10 @@ export async function createNewPost(req: AuthRequest, res: Response) {
   const eventTime = req.body.eventTime?.trim?.() || "";
   const eventLocation = req.body.eventLocation?.trim?.() || "";
   const registerLink = req.body.registerLink?.trim?.() || "";
+  const registerLabel = req.body.registerLabel?.trim?.() || "";
 
   const hasEventDetails =
-    !!eventDate || !!eventTime || !!eventLocation || !!registerLink;
+    !!eventDate || !!eventTime || !!eventLocation || !!registerLabel || !!registerLink;
 
   const result = await createPost(req.user.userId, {
     title: req.body.title,
@@ -138,6 +155,7 @@ export async function createNewPost(req: AuthRequest, res: Response) {
           date: eventDate || undefined,
           time: eventTime || undefined,
           location: eventLocation || undefined,
+          registerLabel: registerLabel || undefined,
           registerLink: registerLink || undefined,
         }
       : null,

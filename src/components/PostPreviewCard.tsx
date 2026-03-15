@@ -27,7 +27,7 @@ export default function PostPreviewCard({ item }: { item: FeedItem }) {
       <div className="p-4">
         {/* Author */}
         <div className="flex items-center gap-2.5 mb-3">
-          <Avatar name={item.author} src={item.avatar} size={32} />
+          <Avatar name={item.author} src={item.avatar} size="sm" />
           <div>
             <p className="text-[12px] font-bold text-white">{item.authorName}</p>
             <p className="text-[10px] text-white/35">{item.authorRole} · Just now</p>
@@ -41,20 +41,37 @@ export default function PostPreviewCard({ item }: { item: FeedItem }) {
         <p className="text-[12px] text-white/50 leading-relaxed line-clamp-2">{item.summary}</p>
 
         {/* Event details */}
-        {item.eventDetails && (
+        {item.kind === 'event' && item.eventDetails && (
           <div className="mt-3 flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-white/45">
-              <Calendar size={11} />
-              <span>{item.eventDetails.date}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-white/45">
-              <Clock size={11} />
-              <span>{item.eventDetails.time}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-white/45">
-              <MapPin size={11} />
-              <span>{item.eventDetails.location}</span>
-            </div>
+            {item.eventDetails.date && (
+              <div className="flex items-center gap-1.5 text-[11px] text-white/45">
+                <Calendar size={11} />
+                <span>{item.eventDetails.date}</span>
+              </div>
+            )}
+            {item.eventDetails.time && (
+              <div className="flex items-center gap-1.5 text-[11px] text-white/45">
+                <Clock size={11} />
+                <span>{item.eventDetails.time}</span>
+              </div>
+            )}
+            {item.eventDetails.location && (
+              <div className="flex items-center gap-1.5 text-[11px] text-white/45">
+                <MapPin size={11} />
+                <span>{item.eventDetails.location}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {item.eventDetails?.registerLink && (
+          <div
+            className="mt-3 rounded-2xl px-3 py-2 text-center text-[11px] font-bold text-white"
+            style={{
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.9) 0%, rgba(139,92,246,0.9) 100%)',
+            }}
+          >
+            {item.eventDetails.registerLabel || 'Register Now'}
           </div>
         )}
 

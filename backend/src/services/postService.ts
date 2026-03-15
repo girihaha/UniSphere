@@ -242,11 +242,16 @@ async function buildPostView(rawPost: any, userId?: string): Promise<Post> {
     clubName: rawPost.clubName || undefined,
     clubAvatar: rawPost.clubAvatar || undefined,
     eventDetails:
-      rawPost.eventDate || rawPost.eventTime || rawPost.eventLocation || rawPost.registerLink
+      rawPost.eventDate ||
+      rawPost.eventTime ||
+      rawPost.eventLocation ||
+      rawPost.registerLabel ||
+      rawPost.registerLink
         ? {
             date: rawPost.eventDate || undefined,
             time: rawPost.eventTime || undefined,
             location: rawPost.eventLocation || undefined,
+            registerLabel: rawPost.registerLabel || undefined,
             registerLink: rawPost.registerLink || undefined,
           }
         : null,
@@ -288,6 +293,19 @@ export async function getSavedPosts(userId: string): Promise<Post[]> {
           userId,
         },
       },
+    },
+    orderBy: {
+      id: "desc",
+    },
+  });
+
+  return Promise.all(rows.map((post) => buildPostView(post, userId)));
+}
+
+export async function getPostsByAuthor(userId: string): Promise<Post[]> {
+  const rows = await prisma.post.findMany({
+    where: {
+      authorId: userId,
     },
     orderBy: {
       id: "desc",
@@ -475,6 +493,7 @@ export async function createPost(userId: string, payload: CreatePostPayload) {
       eventDate: payload.eventDetails?.date || null,
       eventTime: payload.eventDetails?.time || null,
       eventLocation: payload.eventDetails?.location || null,
+      registerLabel: payload.eventDetails?.registerLabel || null,
       registerLink: payload.eventDetails?.registerLink || null,
       status: initialStatus,
       submittedAt: new Date().toISOString(),
