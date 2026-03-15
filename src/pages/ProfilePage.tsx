@@ -506,7 +506,7 @@ function AboutUniSphereModal({
 function SavedPostCard({ post }: { post: Post }) {
   return (
     <div
-      className="rounded-3xl overflow-hidden"
+      className="w-full rounded-3xl overflow-hidden"
       style={{
         background:
           'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.035) 100%)',
@@ -528,11 +528,86 @@ function SavedPostCard({ post }: { post: Post }) {
           {post.summary || post.content || 'No description available.'}
         </p>
         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <p className="text-[11px] text-white/35 font-medium">{post.authorName}</p>
-          <p className="text-[10px] text-white/25 font-medium">{post.time}</p>
+          <div>
+            <p className="text-[11px] text-white/35 font-medium">{post.authorName}</p>
+            <p className="text-[10px] text-white/25 font-medium mt-0.5">{post.time}</p>
+          </div>
+          <ChevronRight size={14} className="text-white/20 flex-shrink-0" />
         </div>
       </div>
     </div>
+  );
+}
+
+function SavedPostDetailModal({
+  post,
+  onClose,
+}: {
+  post: Post | null;
+  onClose: () => void;
+}) {
+  if (!post) return null;
+
+  return (
+    <ModalContainer isOpen={!!post} onClose={onClose} title="Saved Post">
+      <div className="py-2">
+        {post.image && (
+          <div className="rounded-3xl overflow-hidden h-44 mb-4">
+            <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
+          </div>
+        )}
+
+        <div
+          className="rounded-3xl p-4"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%)',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          <p className="text-[10px] font-bold text-primary-400 uppercase tracking-wider mb-2">
+            {post.authorName}
+          </p>
+          <h3 className="text-[18px] font-extrabold text-white tracking-tight mb-2">{post.title}</h3>
+          <p className="text-[11px] text-white/30 font-medium mb-4">{post.time}</p>
+
+          {post.summary && (
+            <p className="text-[13px] text-white/60 leading-relaxed font-medium mb-4">
+              {post.summary}
+            </p>
+          )}
+
+          <div className="flex flex-col gap-3">
+            {(post.content || '')
+              .split(/\n+/)
+              .map((part) => part.trim())
+              .filter(Boolean)
+              .map((part, index) => (
+                <p key={`${post.id}-${index}`} className="text-[13px] text-white/65 leading-relaxed">
+                  {part}
+                </p>
+              ))}
+          </div>
+
+          {post.eventDetails && (
+            <div
+              className="mt-4 rounded-2xl p-4"
+              style={{
+                background: 'rgba(99,102,241,0.08)',
+                border: '1px solid rgba(99,102,241,0.16)',
+              }}
+            >
+              <p className="text-[10px] font-bold text-primary-300 uppercase tracking-wider mb-2">
+                Event Details
+              </p>
+              {post.eventDetails.date && <p className="text-[12px] text-white/60">{post.eventDetails.date}</p>}
+              {post.eventDetails.time && <p className="text-[12px] text-white/45 mt-1">{post.eventDetails.time}</p>}
+              {post.eventDetails.location && <p className="text-[12px] text-white/45 mt-1">{post.eventDetails.location}</p>}
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalContainer>
   );
 }
 
@@ -581,6 +656,7 @@ export default function ProfilePage({
   const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
+  const [selectedSavedPost, setSelectedSavedPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingSocialLinks, setSavingSocialLinks] = useState(false);
@@ -948,7 +1024,14 @@ export default function ProfilePage({
         ) : (
           <div className="grid grid-cols-1 gap-3">
             {savedPosts.map((post) => (
-              <SavedPostCard key={post.id} post={post} />
+              <button
+                key={post.id}
+                type="button"
+                className="text-left"
+                onClick={() => setSelectedSavedPost(post)}
+              >
+                <SavedPostCard post={post} />
+              </button>
             ))}
           </div>
         )}
@@ -1299,6 +1382,11 @@ export default function ProfilePage({
       />
 
       <AboutUniSphereModal isOpen={aboutModal} onClose={() => setAboutModal(false)} />
+
+      <SavedPostDetailModal
+        post={selectedSavedPost}
+        onClose={() => setSelectedSavedPost(null)}
+      />
     </div>
   );
 }

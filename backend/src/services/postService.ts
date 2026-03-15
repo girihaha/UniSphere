@@ -38,6 +38,60 @@ function getDisplayRole(role: string) {
   return "Student";
 }
 
+function getPublicPostAssetBaseUrl() {
+  const configuredBaseUrl =
+    process.env.BACKEND_PUBLIC_URL?.trim() ||
+    process.env.API_PUBLIC_URL?.trim() ||
+    process.env.PUBLIC_API_URL?.trim();
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, "");
+  }
+
+  const railwayPublicDomain = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railwayPublicDomain) {
+    return `https://${railwayPublicDomain.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+  }
+
+  return "";
+}
+
+function normalizePostImageUrl(image?: string | null) {
+  if (!image) return "";
+  if (image.startsWith("data:")) return image;
+
+  const publicBaseUrl = getPublicPostAssetBaseUrl();
+
+  if (image.startsWith("/uploads/") && publicBaseUrl) {
+    return `${publicBaseUrl}${image}`;
+  }
+
+  try {
+    const parsedUrl = new URL(image);
+
+    if (!parsedUrl.pathname.startsWith("/uploads/")) {
+      return image;
+    }
+
+    if (publicBaseUrl) {
+      return `${publicBaseUrl}${parsedUrl.pathname}`;
+    }
+
+    if (
+      parsedUrl.protocol === "http:" &&
+      parsedUrl.hostname !== "localhost" &&
+      parsedUrl.hostname !== "127.0.0.1"
+    ) {
+      parsedUrl.protocol = "https:";
+      return parsedUrl.toString();
+    }
+  } catch {
+    return image;
+  }
+
+  return image;
+}
+
 function validatePostType(type?: PostType) {
   return !!type && ["news", "clubs", "students"].includes(type);
 }
@@ -107,7 +161,7 @@ async function buildPostView(rawPost: any, userId?: string): Promise<Post> {
     comments: commentCount,
     saved,
     liked,
-    image: rawPost.image || "",
+    image: normalizePostImageUrl(rawPost.image),
     clubId: rawPost.clubId ?? undefined,
     clubName: rawPost.clubName || undefined,
     clubAvatar: rawPost.clubAvatar || undefined,

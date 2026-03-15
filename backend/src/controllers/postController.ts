@@ -37,7 +37,21 @@ async function getActorRole(userId: string) {
 }
 
 function getBaseUrl(req: AuthRequest) {
-  return `${req.protocol}://${req.get("host")}`;
+  const configuredBaseUrl =
+    process.env.BACKEND_PUBLIC_URL?.trim() ||
+    process.env.API_PUBLIC_URL?.trim() ||
+    process.env.PUBLIC_API_URL?.trim();
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, "");
+  }
+
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  const host = forwardedHost || req.get("host");
+
+  return `${protocol}://${host}`;
 }
 
 async function createPostOwnerNotification(

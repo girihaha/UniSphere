@@ -12,6 +12,7 @@ import { initializeMailer } from "./lib/mailer";
 dotenv.config();
 
 const app = express();
+app.set("trust proxy", true);
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
