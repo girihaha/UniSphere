@@ -499,6 +499,41 @@ export async function createPost(userId: string, payload: CreatePostPayload) {
   };
 }
 
+export async function deletePostByOwner(postId: number, userId: string) {
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+  });
+
+  if (!post) {
+    return { error: "Post not found.", status: 404 as const };
+  }
+
+  if (post.authorId !== userId) {
+    return { error: "You can only delete your own posts.", status: 403 as const };
+  }
+
+  await prisma.$transaction([
+    prisma.post.delete({
+      where: { id: postId },
+    }),
+    prisma.user.updateMany({
+      where: {
+        id: userId,
+        posts: {
+          gt: 0,
+        },
+      },
+      data: {
+        posts: {
+          decrement: 1,
+        },
+      },
+    }),
+  ]);
+
+  return { success: true };
+}
+
 export async function approvePostByClubAdmin(postId: number, reviewerId: string) {
   const post = await prisma.post.findUnique({
     where: { id: postId },

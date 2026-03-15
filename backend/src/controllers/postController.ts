@@ -5,6 +5,7 @@ import {
   approvePostBySuperAdmin,
   createCommentForPost,
   createPost,
+  deletePostByOwner,
   deleteCommentForPost,
   getAllPostsForModeration,
   getCommentsForPost,
@@ -149,6 +150,24 @@ export async function createNewPost(req: AuthRequest, res: Response) {
   return res.status(201).json({
     data: result.post,
     message: result.message,
+  });
+}
+
+export async function deleteOwnedPost(req: AuthRequest, res: Response) {
+  if (!req.user?.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const postId = Number(req.params.id);
+  const result = await deletePostByOwner(postId, req.user.userId);
+
+  if (result.error) {
+    return res.status(result.status || 400).json({ message: result.error });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Post deleted successfully.",
   });
 }
 

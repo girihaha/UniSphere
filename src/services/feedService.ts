@@ -254,3 +254,15 @@ export async function unsavePost(postId: number): Promise<{ error?: string }> {
     return { error: message };
   }
 }
+
+export async function deletePost(postId: number): Promise<{ error?: string; message?: string }> {
+  try {
+    const response = await api.delete<{ message?: string }>(`/posts/${postId}`);
+    return {
+      message: response.message || 'Post deleted successfully',
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to delete post';
+    return { error: message };
+  }
+}

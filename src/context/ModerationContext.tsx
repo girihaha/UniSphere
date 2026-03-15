@@ -12,6 +12,7 @@ import { useAuth } from './AuthContext';
 import {
   approvePostAtAdminLevel,
   approvePostAtClubLevel,
+  deletePost as deletePostService,
   getAdminReviewQueue,
   getClubReviewQueue,
   rejectPostAtAdminLevel,
@@ -26,6 +27,7 @@ interface ModerationContextValue {
   submitForReview: (item: Post, authorName: string, authorRole: string) => void;
   approvePost: (id: number) => Promise<void>;
   rejectPost: (id: number, reason?: string) => Promise<void>;
+  deleteMyPost: (id: number) => Promise<{ error?: string; message?: string }>;
   refreshModeration: () => Promise<void>;
   isLoading: boolean;
 }
@@ -215,6 +217,23 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
     [pendingPosts, refreshFeed, refreshModeration]
   );
 
+  const deleteMyPost = useCallback(
+    async (id: number) => {
+      const result = await deletePostService(id);
+
+      if (result.error) {
+        return { error: result.error };
+      }
+
+      setMyPosts((prev) => prev.filter((item) => item.id !== id));
+      setPendingPosts((prev) => prev.filter((item) => item.id !== id));
+      await refreshFeed();
+
+      return { message: result.message };
+    },
+    [refreshFeed]
+  );
+
   return (
     <ModerationContext.Provider
       value={{
@@ -223,6 +242,7 @@ export function ModerationProvider({ children }: { children: ReactNode }) {
         submitForReview,
         approvePost,
         rejectPost,
+        deleteMyPost,
         refreshModeration,
         isLoading,
       }}

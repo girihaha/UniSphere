@@ -25,6 +25,13 @@ interface SignupPageProps {
 
 type SignupView = 'form' | 'otp';
 
+const PROGRAM_OPTIONS = SRM_PROGRAM_GROUPS.flatMap((group) =>
+  group.options.map((option) => ({
+    value: option,
+    label: option,
+  }))
+);
+
 export default function SignupPage({ onGoLogin }: SignupPageProps) {
   const { signup, verifySignupOtp, resendSignupOtp } = useAuth();
 
@@ -347,69 +354,103 @@ export default function SignupPage({ onGoLogin }: SignupPageProps) {
                 </div>
 
                 <div>
-                  <div className="relative">
-                    <GraduationCap
-                      size={15}
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
-                    />
-                    <select
-                      value={form.branch}
-                      onChange={(e) => set('branch', e.target.value)}
-                      className={`${inputBase} appearance-none pr-9`}
-                      style={inputStyle(fieldErrors.branch)}
-                    >
-                        <option value="" style={{ background: '#0a0e1a' }}>
-                        Select Department / Program
-                      </option>
-                      {SRM_PROGRAM_GROUPS.map((group) => (
-                        <optgroup key={group.label} label={group.label}>
-                          {group.options.map((option) => (
-                            <option key={option} value={option} style={{ background: '#0a0e1a' }}>
-                              {option}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
-                    />
-                  </div>
-                  <FieldError msg={fieldErrors.branch} />
-                </div>
+                  <div
+                    className="rounded-[26px] p-3.5"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(99,102,241,0.07) 0%, rgba(34,211,238,0.03) 100%)',
+                      border: `1px solid ${
+                        fieldErrors.branch || fieldErrors.year
+                          ? 'rgba(244,63,94,0.25)'
+                          : 'rgba(255,255,255,0.08)'
+                      }`,
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-3 px-1">
+                      <div
+                        className="w-8 h-8 rounded-2xl flex items-center justify-center"
+                        style={{
+                          background: 'rgba(99,102,241,0.12)',
+                          border: '1px solid rgba(99,102,241,0.18)',
+                        }}
+                      >
+                        <GraduationCap size={14} className="text-primary-300" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-white/75">Academic details</p>
+                        <p className="text-[10px] text-white/35">
+                          Choose your SRM department/program and current year
+                        </p>
+                      </div>
+                    </div>
 
-                <div>
-                  <div className="relative">
-                    <GraduationCap
-                      size={15}
-                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
-                    />
-                    <select
-                      value={form.year}
-                      onChange={(e) => set('year', e.target.value)}
-                      className={`${inputBase} appearance-none pr-9`}
-                      style={inputStyle(fieldErrors.year)}
-                    >
+                    <div className="grid grid-cols-1 gap-3">
+                      <div>
+                        <div className="relative">
+                          <GraduationCap
+                            size={15}
+                            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                          />
+                          <select
+                            value={form.branch}
+                            onChange={(e) => set('branch', e.target.value)}
+                            className={`${inputBase} appearance-none pr-9`}
+                            style={inputStyle(fieldErrors.branch)}
+                          >
                         <option value="" style={{ background: '#0a0e1a' }}>
-                        Select Year
-                      </option>
-                      {SRM_YEAR_OPTIONS.map((yearOption) => (
-                        <option
-                          key={yearOption.value}
-                          value={yearOption.value}
-                          style={{ background: '#0a0e1a' }}
-                        >
-                          {yearOption.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={14}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
-                    />
+                              Select Department / Program
+                            </option>
+                            {PROGRAM_OPTIONS.map((program) => (
+                              <option
+                                key={program.value}
+                                value={program.value}
+                                style={{ background: '#0a0e1a' }}
+                              >
+                                {program.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown
+                            size={14}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                          />
+                        </div>
+                        <FieldError msg={fieldErrors.branch} />
+                      </div>
+
+                      <div>
+                        <div className="relative">
+                          <GraduationCap
+                            size={15}
+                            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                          />
+                          <select
+                            value={form.year}
+                            onChange={(e) => set('year', e.target.value)}
+                            className={`${inputBase} appearance-none pr-9`}
+                            style={inputStyle(fieldErrors.year)}
+                          >
+                        <option value="" style={{ background: '#0a0e1a' }}>
+                              Select Year
+                            </option>
+                            {SRM_YEAR_OPTIONS.map((yearOption) => (
+                              <option
+                                key={yearOption.value}
+                                value={yearOption.value}
+                                style={{ background: '#0a0e1a' }}
+                              >
+                                {yearOption.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown
+                            size={14}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+                          />
+                        </div>
+                        <FieldError msg={fieldErrors.year} />
+                      </div>
+                    </div>
                   </div>
-                  <FieldError msg={fieldErrors.year} />
                 </div>
 
                 <div>

@@ -10,6 +10,7 @@ import {
   XCircle,
   AlertTriangle,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import { useModeration } from '../context/ModerationContext';
 import { ModerationItem as PendingPost } from '../types';
@@ -19,9 +20,13 @@ import TagBadge from '../components/TagBadge';
 function PostDetailSheet({
   post,
   onClose,
+  onDelete,
+  isDeleting,
 }: {
   post: PendingPost;
   onClose: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
 }) {
   const item = post.post;
 
@@ -197,6 +202,21 @@ function PostDetailSheet({
               </div>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isDeleting}
+            className="w-full mt-4 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] disabled:opacity-60 disabled:scale-100"
+            style={{
+              background: 'rgba(244,63,94,0.08)',
+              border: '1px solid rgba(244,63,94,0.18)',
+              color: '#fda4af',
+            }}
+          >
+            <Trash2 size={15} />
+            {isDeleting ? 'Deleting Post...' : 'Delete Post'}
+          </button>
         </div>
       </div>
     </div>
@@ -242,8 +262,9 @@ function MyPostCard({ post, onView }: { post: PendingPost; onView: () => void })
 }
 
 export default function MyPostsPage() {
-  const { myPosts } = useModeration();
+  const { myPosts, deleteMyPost } = useModeration();
   const [selected, setSelected] = useState<PendingPost | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const stats = useMemo(() => {
     const pendingClub = myPosts.filter((p) => p.status === 'pending_club_review').length;
@@ -259,6 +280,27 @@ export default function MyPostsPage() {
       totalPending: pendingClub + pendingAdmin,
     };
   }, [myPosts]);
+
+  const handleDelete = async () => {
+    if (!selected) return;
+
+    const confirmed = window.confirm('Delete this post permanently?');
+    if (!confirmed) return;
+
+    setDeletingId(selected.id);
+
+    try {
+      const result = await deleteMyPost(selected.id);
+      if (result.error) {
+        window.alert(result.error);
+        return;
+      }
+
+      setSelected(null);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="min-h-dvh pb-24">
@@ -363,7 +405,14 @@ export default function MyPostsPage() {
         )}
       </div>
 
-      {selected && <PostDetailSheet post={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <PostDetailSheet
+          post={selected}
+          onClose={() => setSelected(null)}
+          onDelete={handleDelete}
+          isDeleting={deletingId === selected.id}
+        />
+      )}
     </div>
   );
 }

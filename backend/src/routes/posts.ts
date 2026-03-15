@@ -10,6 +10,7 @@ import {
   approvePostAtClubLevel,
   createCommentOnPost,
   createNewPost,
+  deleteOwnedPost,
   deleteCommentOnPost,
   getSinglePost,
   listSavedPosts,
@@ -86,6 +87,7 @@ router.patch(
 router.get("/", requireAuth, listPosts);
 router.get("/saved", requireAuth, listSavedPosts);
 router.post("/", requireAuth, upload.single("image"), createNewPost);
+router.delete("/:id", requireAuth, deleteOwnedPost);
 
 /* ---------------- COMMENTS ---------------- */
 
