@@ -3,6 +3,9 @@ import nodemailer from "nodemailer";
 const MAIL_USER = process.env.MAIL_USER || "";
 const MAIL_PASS = process.env.MAIL_PASS || "";
 const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME || "UniSphere";
+const MAIL_CONNECTION_TIMEOUT_MS = 10_000;
+const MAIL_SOCKET_TIMEOUT_MS = 20_000;
+const MAIL_SEND_TIMEOUT_MS = 15_000;
 
 function createTransporter() {
   if (!MAIL_USER || !MAIL_PASS) {
@@ -18,6 +21,28 @@ function createTransporter() {
       user: MAIL_USER,
       pass: MAIL_PASS,
     },
+    connectionTimeout: MAIL_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: MAIL_CONNECTION_TIMEOUT_MS,
+    socketTimeout: MAIL_SOCKET_TIMEOUT_MS,
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      }
+    );
   });
 }
 
@@ -70,15 +95,16 @@ export async function sendOtpMail(params: {
   `;
 
   try {
-    await transporter.verify();
-    console.log("[MAILER] Transport verified successfully");
-
-    const info = await transporter.sendMail({
-      from: `"${MAIL_FROM_NAME}" <${MAIL_USER}>`,
-      to: params.to,
-      subject,
-      html,
-    });
+    const info = await withTimeout(
+      transporter.sendMail({
+        from: `"${MAIL_FROM_NAME}" <${MAIL_USER}>`,
+        to: params.to,
+        subject,
+        html,
+      }),
+      MAIL_SEND_TIMEOUT_MS,
+      "OTP mail send"
+    );
 
     console.log("[MAILER] OTP mail sent:", info.messageId);
 
