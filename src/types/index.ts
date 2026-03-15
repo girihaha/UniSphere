@@ -205,6 +205,9 @@ export interface NetworkNote {
   avatar?: string;
   text: string;
   time: string;
+  expiresAt?: string;
+  expiresAtMs?: number;
+  expiresIn?: string;
 }
 
 export type NotificationType =

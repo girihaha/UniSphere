@@ -186,7 +186,10 @@ model NetworkNote {
   authorId  String
   text      String
   createdAt DateTime @default(now())
+  expiresAt DateTime
   user      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model Notification {

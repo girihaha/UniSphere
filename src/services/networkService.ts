@@ -133,9 +133,12 @@ export async function getNetworkNotes(): Promise<NetworkNote[]> {
   }
 }
 
-export async function createNetworkNote(text: string): Promise<ActionResult> {
+export async function createNetworkNote(
+  text: string,
+  durationSeconds: number
+): Promise<ActionResult> {
   try {
-    await api.post('/users/network/notes', { text });
+    await api.post('/users/network/notes', { text, durationSeconds });
     return {
       success: true,
       message: 'Note posted successfully',

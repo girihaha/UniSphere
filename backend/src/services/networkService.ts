@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { formatAcademicYear } from "../models/userModel";
 
 export type RelationshipStatus = "connected" | "request_sent" | "you" | "none";
+const MAX_NETWORK_NOTE_LIFETIME_SECONDS = 24 * 60 * 60;
 
 function getRelativeTime(timestamp: Date | string) {
   const createdAt = new Date(timestamp).getTime();
@@ -20,6 +21,23 @@ function getRelativeTime(timestamp: Date | string) {
 
 function formatRelativeTime(timestamp: Date | string) {
   return getRelativeTime(timestamp);
+}
+
+function formatRemainingLifetime(expiresAt: Date) {
+  const remainingMs = Math.max(0, expiresAt.getTime() - Date.now());
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+  if (remainingSeconds < 60) {
+    return `${remainingSeconds}s left`;
+  }
+
+  const remainingMinutes = Math.ceil(remainingSeconds / 60);
+  if (remainingMinutes < 60) {
+    return `${remainingMinutes}m left`;
+  }
+
+  const remainingHours = Math.ceil(remainingMinutes / 60);
+  return `${remainingHours}h left`;
 }
 
 function getDisplayRole(role: string) {
@@ -496,11 +514,23 @@ export async function rejectConnectionRequest(
 export async function getNetworkNotesForUser(currentUserId: string) {
   const connectedIds = await getConnectedUserIds(currentUserId);
   const allowedAuthorIds = [currentUserId, ...connectedIds];
+  const now = new Date();
+
+  await prisma.networkNote.deleteMany({
+    where: {
+      expiresAt: {
+        lte: now,
+      },
+    },
+  });
 
   const notes = await prisma.networkNote.findMany({
     where: {
       authorId: {
         in: allowedAuthorIds,
+      },
+      expiresAt: {
+        gt: now,
       },
     },
     include: {
@@ -519,15 +549,29 @@ export async function getNetworkNotesForUser(currentUserId: string) {
     avatar: note.user.avatarUrl || "",
     text: note.text,
     time: formatRelativeTime(note.createdAt),
+    expiresAt: note.expiresAt.toISOString(),
+    expiresAtMs: note.expiresAt.getTime(),
+    expiresIn: formatRemainingLifetime(note.expiresAt),
   }));
 }
 
 export async function createNetworkNoteForUser(
   currentUserId: string,
-  text: string
+  text: string,
+  durationSeconds: number
 ): Promise<{ error?: string }> {
   if (!text?.trim()) {
     return { error: "Note text is required." };
+  }
+
+  const noteLifetimeSeconds = Number.parseInt(String(durationSeconds), 10);
+
+  if (!Number.isFinite(noteLifetimeSeconds) || noteLifetimeSeconds <= 0) {
+    return { error: "A valid note duration is required." };
+  }
+
+  if (noteLifetimeSeconds > MAX_NETWORK_NOTE_LIFETIME_SECONDS) {
+    return { error: "Network notes can stay live for at most 24 hours." };
   }
 
   const author = await prisma.user.findUnique({
@@ -544,6 +588,7 @@ export async function createNetworkNoteForUser(
     data: {
       authorId: currentUserId,
       text: cleanText,
+      expiresAt: new Date(Date.now() + noteLifetimeSeconds * 1000),
     },
   });
 

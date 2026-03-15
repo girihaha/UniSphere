@@ -236,7 +236,11 @@ export async function createNetworkNote(req: AuthRequest, res: Response) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const result = await createNetworkNoteForUser(req.user.userId, req.body?.text || "");
+  const result = await createNetworkNoteForUser(
+    req.user.userId,
+    req.body?.text || "",
+    req.body?.durationSeconds
+  );
 
   if (result.error) {
     return res.status(400).json({ message: result.error });

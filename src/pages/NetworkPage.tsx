@@ -44,6 +44,18 @@ import type { Connection, ConnectionRequest, NetworkNote } from '../types';
 
 const QR_PATTERN = [0, 1, 2, 3, 4, 5, 6, 7, 13, 14, 20, 21, 24, 27, 28, 31, 34, 35, 41, 42, 43, 44, 45, 46, 47, 48];
 const SCANNER_ELEMENT_ID = 'unisphere-qr-reader';
+const NOTE_DURATION_OPTIONS = [
+  { value: 30, label: '30 seconds' },
+  { value: 60, label: '1 minute' },
+  { value: 300, label: '5 minutes' },
+  { value: 900, label: '15 minutes' },
+  { value: 1800, label: '30 minutes' },
+  { value: 3600, label: '1 hour' },
+  { value: 7200, label: '2 hours' },
+  { value: 21600, label: '6 hours' },
+  { value: 43200, label: '12 hours' },
+  { value: 86400, label: '24 hours' },
+];
 
 type RelationshipStatus = 'connected' | 'request_sent' | 'you' | 'none';
 
@@ -200,6 +212,25 @@ function getRelationshipBadgeStyles(status: RelationshipStatus) {
   }
 }
 
+function formatNoteLifetime(expiresAtMs?: number) {
+  if (!expiresAtMs) return '';
+
+  const remainingMs = Math.max(0, expiresAtMs - Date.now());
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+  if (remainingSeconds < 60) {
+    return `${remainingSeconds}s left`;
+  }
+
+  const remainingMinutes = Math.ceil(remainingSeconds / 60);
+  if (remainingMinutes < 60) {
+    return `${remainingMinutes}m left`;
+  }
+
+  const remainingHours = Math.ceil(remainingMinutes / 60);
+  return `${remainingHours}h left`;
+}
+
 function QRGrid({ size = 7, small = false }: { size?: number; small?: boolean }) {
   const cellSize = small ? 'w-[6px] h-[6px]' : 'w-[26px] h-[26px]';
 
@@ -254,7 +285,7 @@ function InlineModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] rounded-t-[32px] overflow-hidden"
+        className="w-full max-w-[430px] lg:max-w-[760px] rounded-t-[32px] overflow-hidden"
         style={{
           background: 'linear-gradient(180deg, rgba(12,16,30,0.98) 0%, rgba(10,14,26,0.98) 100%)',
           borderTop: '1px solid rgba(255,255,255,0.08)',
@@ -571,7 +602,12 @@ function NoteCard({ note }: { note: NetworkNote }) {
         </div>
       </div>
       <p className="text-[12px] text-white/65 leading-relaxed font-medium mb-2">{note.text}</p>
-      <p className="text-[9px] text-white/25 font-semibold">{note.time}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[9px] text-white/25 font-semibold">{note.time}</p>
+        {note.expiresAtMs && (
+          <span className="text-[9px] text-amber-300/85 font-semibold">{formatNoteLifetime(note.expiresAtMs)}</span>
+        )}
+      </div>
     </div>
   );
 }
@@ -611,6 +647,7 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
   const [connections, setConnections] = useState<Connection[]>([]);
   const [notes, setNotes] = useState<NetworkNote[]>([]);
   const [newNote, setNewNote] = useState('');
+  const [noteDurationSeconds, setNoteDurationSeconds] = useState(300);
   const [postingNote, setPostingNote] = useState(false);
   const [showRequests, setShowRequests] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -625,6 +662,14 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
       setToastVisible(false);
     }, 2200);
   };
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNotes((current) => current.filter((note) => !note.expiresAtMs || note.expiresAtMs > Date.now()));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const clearLookupState = () => {
     setLookupCode('');
@@ -851,11 +896,12 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
     if (!newNote.trim()) return;
 
     setPostingNote(true);
-    const result = await createNetworkNote(newNote);
+    const result = await createNetworkNote(newNote, noteDurationSeconds);
     setPostingNote(false);
 
     if (result.success) {
       setNewNote('');
+      setNoteDurationSeconds(300);
       showToast('success', result.message || 'Note posted');
       await loadNetworkData();
       return;
@@ -1217,16 +1263,38 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
               }}
             />
 
-            <div className="flex justify-end mt-3">
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<Send size={12} />}
-                onClick={handleCreateNote}
-                disabled={postingNote || !newNote.trim()}
-              >
-                {postingNote ? 'Posting...' : 'Post Note'}
-              </Button>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="sm:max-w-[220px]">
+                <label className="mb-1 block text-[11px] font-semibold text-white/45">Visible for</label>
+                <select
+                  value={noteDurationSeconds}
+                  onChange={(e) => setNoteDurationSeconds(Number(e.target.value))}
+                  className="w-full rounded-2xl px-3 py-2.5 text-sm text-white outline-none font-medium"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                  }}
+                >
+                  {NOTE_DURATION_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value} style={{ background: '#0f172a' }}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[10px] text-white/25">Maximum lifetime: 24 hours</p>
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<Send size={12} />}
+                  onClick={handleCreateNote}
+                  disabled={postingNote || !newNote.trim()}
+                >
+                  {postingNote ? 'Posting...' : 'Post Note'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
