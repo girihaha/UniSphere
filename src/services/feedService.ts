@@ -34,6 +34,16 @@ export async function getPostById(id: number): Promise<Post | null> {
   }
 }
 
+export async function getSavedPosts(): Promise<Post[]> {
+  try {
+    const response = await api.get<PaginatedResponse<Post>>('/posts/saved');
+    return response.data;
+  } catch (err) {
+    console.error('getSavedPosts error:', err);
+    return [];
+  }
+}
+
 export async function createPost(
   payload: CreatePostPayload
 ): Promise<{ post?: Post; message?: string; error?: string }> {

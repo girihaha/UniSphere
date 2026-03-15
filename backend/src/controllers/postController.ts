@@ -12,6 +12,7 @@ import {
   getPendingClubReviewPosts,
   getPostById,
   getPosts,
+  getSavedPosts,
   likePost,
   rejectPost,
   savePost,
@@ -86,6 +87,21 @@ export async function getSinglePost(req: AuthRequest, res: Response) {
   }
 
   return res.status(200).json({ data: post });
+}
+
+export async function listSavedPosts(req: AuthRequest, res: Response) {
+  if (!req.user?.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const posts = await getSavedPosts(req.user.userId);
+
+  return res.status(200).json({
+    data: posts,
+    page: 1,
+    limit: posts.length,
+    total: posts.length,
+  });
 }
 
 export async function createNewPost(req: AuthRequest, res: Response) {

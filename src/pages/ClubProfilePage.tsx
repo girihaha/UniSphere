@@ -20,6 +20,7 @@ import TagBadge from '../components/TagBadge';
 import CommentsSheet from '../components/CommentsSheet';
 import Avatar from '../components/Avatar';
 import { getClubById } from '../services/clubService';
+import { savePost, unsavePost } from '../services/feedService';
 
 interface ClubProfilePageProps {
   club: any;
@@ -234,18 +235,35 @@ export default function ClubProfilePage({
 
   const visiblePosts = activeTab === 'posts' ? regularPosts : highlights;
 
-  const togglePost = (id: number, type: 'liked' | 'saved') => {
+  const togglePost = async (id: number, type: 'liked' | 'saved') => {
+    const current = postStates[id] || { liked: false, saved: false, likes: 0 };
+    const next = {
+      ...current,
+      [type]: !current[type],
+      likes:
+        type === 'liked'
+          ? current.likes + (current.liked ? -1 : 1)
+          : current.likes,
+    };
+
     setPostStates((prev) => ({
       ...prev,
-      [id]: {
-        ...(prev[id] || { liked: false, saved: false, likes: 0 }),
-        [type]: !(prev[id]?.[type] ?? false),
-        likes:
-          type === 'liked'
-            ? (prev[id]?.likes ?? 0) + ((prev[id]?.liked ?? false) ? -1 : 1)
-            : (prev[id]?.likes ?? 0),
-      },
+      [id]: next,
     }));
+
+    if (type !== 'saved') {
+      return;
+    }
+
+    const result = current.saved ? await unsavePost(id) : await savePost(id);
+
+    if (result.error) {
+      console.error('Failed to toggle saved post:', result.error);
+      setPostStates((prev) => ({
+        ...prev,
+        [id]: current,
+      }));
+    }
   };
 
   const handleShare = () => {

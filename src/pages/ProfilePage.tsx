@@ -39,7 +39,8 @@ import {
   getAchievements,
   type RecentConnection,
 } from '../services/profileService';
-import type { User, SocialLink, Achievement } from '../types';
+import { getSavedPosts } from '../services/feedService';
+import type { User, SocialLink, Achievement, Post } from '../types';
 
 const SOCIAL_ICONS: Record<string, React.FC<{ size?: number; className?: string }>> = {
   instagram: Instagram,
@@ -502,6 +503,39 @@ function AboutUniSphereModal({
   );
 }
 
+function SavedPostCard({ post }: { post: Post }) {
+  return (
+    <div
+      className="rounded-3xl overflow-hidden"
+      style={{
+        background:
+          'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.035) 100%)',
+        border: '1px solid rgba(255,255,255,0.09)',
+      }}
+    >
+      {post.image && (
+        <div className="h-32 overflow-hidden">
+          <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
+        </div>
+      )}
+
+      <div className="p-4">
+        <p className="text-[10px] font-bold text-primary-400 uppercase tracking-wider mb-1.5">
+          Saved Post
+        </p>
+        <h3 className="text-[14px] font-bold text-white leading-snug mb-1.5">{post.title}</h3>
+        <p className="text-[12px] text-white/50 leading-relaxed line-clamp-3">
+          {post.summary || post.content || 'No description available.'}
+        </p>
+        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="text-[11px] text-white/35 font-medium">{post.authorName}</p>
+          <p className="text-[10px] text-white/25 font-medium">{post.time}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface ProfilePageProps {
   onLogout?: () => void;
   onOpenMyPosts?: () => void;
@@ -546,6 +580,7 @@ export default function ProfilePage({
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingSocialLinks, setSavingSocialLinks] = useState(false);
@@ -568,12 +603,15 @@ export default function ProfilePage({
     const loadProfileData = async () => {
       setLoading(true);
       try {
-        const [profileData, linksData, connectionsData, achievementsData] = await Promise.all([
+        const [savedPostsData, profileData, linksData, connectionsData, achievementsData] = await Promise.all([
+          getSavedPosts(),
           getUserProfile(),
           getSocialLinks(),
           getRecentConnections(),
           getAchievements(),
         ]);
+
+        setSavedPosts(savedPostsData || []);
 
         if (profileData) {
           setProfile({ ...emptyProfile, ...profileData });
@@ -589,6 +627,7 @@ export default function ProfilePage({
         if (user) {
           setProfile({ ...emptyProfile, ...user });
         }
+        setSavedPosts([]);
       } finally {
         setLoading(false);
       }
@@ -891,6 +930,28 @@ export default function ProfilePage({
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="px-4 mb-5">
+        <SectionHeader title="Saved Posts" />
+        {savedPosts.length === 0 ? (
+          <div
+            className="rounded-3xl px-4 py-5"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <p className="text-sm font-bold text-white/45">No saved posts yet</p>
+            <p className="text-[12px] text-white/25 mt-1">Save posts from the feed and they will appear here.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3">
+            {savedPosts.map((post) => (
+              <SavedPostCard key={post.id} post={post} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="px-4 mb-5">

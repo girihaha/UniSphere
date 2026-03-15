@@ -12,6 +12,7 @@ import {
   createNewPost,
   deleteCommentOnPost,
   getSinglePost,
+  listSavedPosts,
   likeSinglePost,
   listAdminReviewQueue,
   listAllPostsForModeration,
@@ -83,6 +84,7 @@ router.patch(
 /* ---------------- FEED ---------------- */
 
 router.get("/", requireAuth, listPosts);
+router.get("/saved", requireAuth, listSavedPosts);
 router.post("/", requireAuth, upload.single("image"), createNewPost);
 
 /* ---------------- COMMENTS ---------------- */

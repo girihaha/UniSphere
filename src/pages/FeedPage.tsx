@@ -26,6 +26,7 @@ import NotificationBell from '../components/NotificationBell';
 import CommentsSheet from '../components/CommentsSheet';
 import { FeedCardSkeleton } from '../components/Skeleton';
 import { useFeed } from '../context/FeedContext';
+import { likePost, savePost, unlikePost, unsavePost } from '../services/feedService';
 
 type FilterValue = 'general' | 'news' | 'clubs' | 'students';
 
@@ -598,18 +599,37 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
 
   const displayedItems = allItems;
 
-  const toggle = useCallback((id: number, type: 'liked' | 'saved', currentState: InteractionState) => {
-    setInteractions((prev) => {
-      const cur = prev[id] ?? currentState;
-      return {
+  const toggle = useCallback(async (id: number, type: 'liked' | 'saved', currentState: InteractionState) => {
+    const nextState: InteractionState = {
+      ...currentState,
+      [type]: !currentState[type],
+      likes:
+        type === 'liked'
+          ? currentState.likes + (currentState.liked ? -1 : 1)
+          : currentState.likes,
+    };
+
+    setInteractions((prev) => ({
+      ...prev,
+      [id]: nextState,
+    }));
+
+    const result =
+      type === 'liked'
+        ? currentState.liked
+          ? await unlikePost(id)
+          : await likePost(id)
+        : currentState.saved
+        ? await unsavePost(id)
+        : await savePost(id);
+
+    if (result.error) {
+      console.error(`Failed to toggle ${type}:`, result.error);
+      setInteractions((prev) => ({
         ...prev,
-        [id]: {
-          ...cur,
-          [type]: !cur[type],
-          likes: type === 'liked' ? cur.likes + (cur.liked ? -1 : 1) : cur.likes,
-        },
-      };
-    });
+        [id]: currentState,
+      }));
+    }
   }, []);
 
   const openDetail = useCallback((item: FeedItem) => {

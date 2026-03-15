@@ -149,6 +149,24 @@ export async function getPosts(filter?: PostType, userId?: string): Promise<Post
   return Promise.all(rows.map((post) => buildPostView(post, userId)));
 }
 
+export async function getSavedPosts(userId: string): Promise<Post[]> {
+  const rows = await prisma.post.findMany({
+    where: {
+      status: "approved",
+      saves: {
+        some: {
+          userId,
+        },
+      },
+    },
+    orderBy: {
+      id: "desc",
+    },
+  });
+
+  return Promise.all(rows.map((post) => buildPostView(post, userId)));
+}
+
 export async function getPostById(postId: number, userId?: string): Promise<Post | null> {
   const post = await prisma.post.findFirst({
     where: {
