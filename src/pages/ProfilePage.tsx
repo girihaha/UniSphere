@@ -504,35 +504,86 @@ function AboutUniSphereModal({
 }
 
 function SavedPostCard({ post }: { post: Post }) {
+  const previewText = (post.summary || post.content || 'No description available.').trim();
+  const hasImage = Boolean(post.image);
+
   return (
     <div
-      className="w-full rounded-3xl overflow-hidden"
+      className="w-full h-full rounded-3xl overflow-hidden transition-transform active:scale-[0.98]"
       style={{
         background:
           'linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.035) 100%)',
         border: '1px solid rgba(255,255,255,0.09)',
       }}
     >
-      {post.image && (
-        <div className="h-32 overflow-hidden">
+      <div
+        className="relative h-28 overflow-hidden"
+        style={{
+          background: hasImage
+            ? 'rgba(255,255,255,0.04)'
+            : 'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(168,85,247,0.08) 100%)',
+        }}
+      >
+        {hasImage ? (
           <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
-        </div>
-      )}
-
-      <div className="p-4">
-        <p className="text-[10px] font-bold text-primary-400 uppercase tracking-wider mb-1.5">
-          Saved Post
-        </p>
-        <h3 className="text-[14px] font-bold text-white leading-snug mb-1.5">{post.title}</h3>
-        <p className="text-[12px] text-white/50 leading-relaxed line-clamp-3">
-          {post.summary || post.content || 'No description available.'}
-        </p>
-        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <div>
-            <p className="text-[11px] text-white/35 font-medium">{post.authorName}</p>
-            <p className="text-[10px] text-white/25 font-medium mt-0.5">{post.time}</p>
+        ) : (
+          <div className="flex h-full items-end justify-between px-3 py-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary-300/80">
+                Saved
+              </p>
+              <p className="mt-1 text-[12px] font-semibold text-white/55 line-clamp-1">
+                {post.authorName}
+              </p>
+            </div>
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-2xl"
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              <BookOpen size={16} className="text-white/55" />
+            </div>
           </div>
-          <ChevronRight size={14} className="text-white/20 flex-shrink-0" />
+        )}
+
+        <div
+          className="absolute left-3 top-3 rounded-full px-2.5 py-1"
+          style={{
+            background: 'rgba(8,12,24,0.62)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/75">Saved</p>
+        </div>
+      </div>
+
+      <div className="p-3.5">
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-white/72 line-clamp-1">{post.authorName}</p>
+            <p className="mt-0.5 text-[10px] font-medium text-white/30 line-clamp-1">{post.time}</p>
+          </div>
+          <ChevronRight size={14} className="mt-0.5 flex-shrink-0 text-white/20" />
+        </div>
+
+        <h3 className="text-[13px] font-bold text-white leading-snug line-clamp-2 min-h-[2.5rem]">
+          {post.title}
+        </h3>
+        <p className="mt-2 text-[11px] text-white/45 leading-relaxed line-clamp-2 min-h-[2rem]">
+          {previewText}
+        </p>
+
+        <div
+          className="mt-3 flex items-center justify-between pt-3"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-300/80">
+            Open details
+          </p>
+          <p className="text-[10px] font-medium text-white/25">{post.category}</p>
         </div>
       </div>
     </div>
@@ -1022,12 +1073,12 @@ export default function ProfilePage({
             <p className="text-[12px] text-white/25 mt-1">Save posts from the feed and they will appear here.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {savedPosts.map((post) => (
               <button
                 key={post.id}
                 type="button"
-                className="text-left"
+                className="h-full text-left"
                 onClick={() => setSelectedSavedPost(post)}
               >
                 <SavedPostCard post={post} />
