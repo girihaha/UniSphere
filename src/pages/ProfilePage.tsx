@@ -28,6 +28,11 @@ import Avatar from '../components/Avatar';
 import TagBadge from '../components/TagBadge';
 import Button from '../components/Button';
 import ModalContainer from '../components/ModalContainer';
+import {
+  normalizeAcademicYearSelection,
+  SRM_PROGRAM_GROUPS,
+  SRM_YEAR_OPTIONS,
+} from '../constants/academicOptions';
 import { useAuth } from '../context/AuthContext';
 import { useModeration } from '../context/ModerationContext';
 import {
@@ -228,7 +233,7 @@ function EditProfileModal({
   useEffect(() => {
     setName(profile.name || '');
     setBranch(profile.branch || '');
-    setYear(profile.year || '');
+    setYear(normalizeAcademicYearSelection(profile.year));
     setBio(profile.bio || '');
     setCgpa(profile.cgpa || '');
   }, [profile]);
@@ -287,15 +292,27 @@ function EditProfileModal({
 
         <div>
           <label className="text-[11px] font-bold text-white/35 uppercase tracking-wider block mb-1.5">
-            Branch
+            Department / Program
           </label>
-          <input
-            type="text"
+          <select
             value={branch}
             onChange={(e) => setBranch(e.target.value)}
             className={`${inputClass} ${focusStyle}`}
-            style={inputStyle}
-          />
+            style={{ ...inputStyle, appearance: 'none' }}
+          >
+            <option value="" style={{ background: '#0a0e1a' }}>
+              Select Department / Program
+            </option>
+            {SRM_PROGRAM_GROUPS.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.options.map((option) => (
+                  <option key={option} value={option} style={{ background: '#0a0e1a' }}>
+                    {option}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -308,9 +325,16 @@ function EditProfileModal({
             className={`${inputClass} ${focusStyle}`}
             style={{ ...inputStyle, appearance: 'none' }}
           >
-            {['1st Year', '2nd Year', '3rd Year', '4th Year'].map((y) => (
-              <option key={y} value={y} style={{ background: '#0a0e1a' }}>
-                {y}
+            <option value="" style={{ background: '#0a0e1a' }}>
+              Select Year
+            </option>
+            {SRM_YEAR_OPTIONS.map((yearOption) => (
+              <option
+                key={yearOption.value}
+                value={yearOption.value}
+                style={{ background: '#0a0e1a' }}
+              >
+                {yearOption.label}
               </option>
             ))}
           </select>
@@ -721,7 +745,7 @@ const emptyProfile: User = {
   email: '',
   regNumber: '',
   branch: '',
-  degree: 'B.Tech',
+  degree: 'SRM Program',
   year: '',
   role: 'student',
   bio: '',
@@ -1007,7 +1031,7 @@ export default function ProfilePage({
               {profile.name || 'Student'}
             </h2>
             <p className="text-[13px] text-white/45 font-medium mb-1.5">
-              {profile.branch || 'Branch not set'}
+              {profile.branch || 'Program not set'}
             </p>
 
             {profile.bio && (
@@ -1017,7 +1041,7 @@ export default function ProfilePage({
             )}
 
             <div className="flex items-center gap-2 flex-wrap justify-center mb-5">
-              <TagBadge label={profile.degree || 'B.Tech'} variant="blue" />
+              <TagBadge label={profile.degree || 'SRM Program'} variant="blue" />
               <TagBadge label={profile.year || 'Year not set'} variant="violet" />
               <TagBadge label={`CGPA ${profile.cgpa || '-'}`} variant="emerald" />
             </div>
@@ -1151,7 +1175,7 @@ export default function ProfilePage({
         >
           {[
             { icon: Hash, label: 'Registration Number', value: profile.regNumber || '-' },
-            { icon: GraduationCap, label: 'Branch', value: profile.branch || '-' },
+            { icon: GraduationCap, label: 'Department / Program', value: profile.branch || '-' },
             { icon: BookOpen, label: 'Degree', value: profile.degree || '-' },
             { icon: Award, label: 'Year', value: profile.year || '-' },
             { icon: Mail, label: 'University Email', value: profile.email || '-' },

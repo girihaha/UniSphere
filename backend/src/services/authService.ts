@@ -3,7 +3,12 @@ import type { PendingSignup } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
 import { sendOtpMail } from "../lib/mailer";
-import { SignupPayload, UserRole, sanitizeUser } from "../models/userModel";
+import {
+  SignupPayload,
+  UserRole,
+  parseAcademicYear,
+  sanitizeUser,
+} from "../models/userModel";
 
 const UNIVERSITY_EMAIL_DOMAIN = "@srmist.edu.in";
 const ALLOWED_SOCIAL_TYPES = ["instagram", "linkedin", "github", "portfolio"] as const;
@@ -60,7 +65,7 @@ function sanitizeUserWithDefaults(user: any) {
   return sanitizeUser({
     ...user,
     regNumber: user.regNumber || "",
-    degree: "B.Tech",
+    degree: user.degree || "SRM Program",
   } as any);
 }
 
@@ -185,7 +190,10 @@ export async function signupUser(data: SignupPayload) {
   const otp = generateOtp();
   const otpHash = await hashOtp(otp);
   const passwordHash = await bcrypt.hash(data.password, 10);
-  const normalizedYear = Number.parseInt(String(data.year), 10);
+  const normalizedYear = parseAcademicYear(data.year);
+  if (!normalizedYear) {
+    return { error: "Please select a valid academic year." };
+  }
   const existingPendingSignup = await prisma.pendingSignup.findUnique({
     where: { email: normalizedEmail },
   });
@@ -197,7 +205,7 @@ export async function signupUser(data: SignupPayload) {
       password: passwordHash,
       regNumber: normalizeRegNumber((data as any).regNumber),
       branch: data.branch.trim(),
-      year: Number.isNaN(normalizedYear) ? 1 : normalizedYear,
+      year: normalizedYear,
       role: "student",
       otpHash,
       expiresAt: getOtpExpiryDate(),
@@ -209,7 +217,7 @@ export async function signupUser(data: SignupPayload) {
       password: passwordHash,
       regNumber: normalizeRegNumber((data as any).regNumber),
       branch: data.branch.trim(),
-      year: Number.isNaN(normalizedYear) ? 1 : normalizedYear,
+      year: normalizedYear,
       role: "student",
       otpHash,
       expiresAt: getOtpExpiryDate(),
@@ -557,8 +565,8 @@ export async function updateCurrentUserById(userId: string, updates: any) {
   }
 
   if (updates?.year !== undefined && updates?.year !== null && updates?.year !== "") {
-    const parsedYear = Number(updates.year);
-    if (!Number.isNaN(parsedYear)) {
+    const parsedYear = parseAcademicYear(updates.year);
+    if (parsedYear) {
       allowedUpdates.year = parsedYear;
     }
   }

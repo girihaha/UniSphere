@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { formatAcademicYear } from "../models/userModel";
 
 export type RelationshipStatus = "connected" | "request_sent" | "you" | "none";
 
@@ -299,8 +300,8 @@ export async function getDiscoverUsers(currentUserId: string) {
       id: user.id,
       name: user.name,
       branch: user.branch,
-      degree: "B.Tech",
-      year: user.year,
+      degree: "SRM Program",
+      year: formatAcademicYear(user.year),
       mutual: await getMutualCount(currentUserId, user.id),
       avatar: user.avatarUrl || "",
       requestSent: pendingSentSet.has(user.id),
@@ -332,8 +333,8 @@ export async function getConnectionsForUser(currentUserId: string) {
       id: user.id,
       name: user.name,
       branch: user.branch,
-      degree: "B.Tech",
-      year: user.year,
+      degree: "SRM Program",
+      year: formatAcademicYear(user.year),
       online: true,
       mutual: await getMutualCount(currentUserId, user.id),
       avatar: user.avatarUrl || "",
@@ -363,8 +364,8 @@ export async function getIncomingRequestsForUser(currentUserId: string) {
       id: req.fromUser.id,
       name: req.fromUser.name,
       branch: req.fromUser.branch,
-      degree: "B.Tech",
-      year: req.fromUser.year,
+      degree: "SRM Program",
+      year: formatAcademicYear(req.fromUser.year),
       mutual: await getMutualCount(currentUserId, req.fromUser.id),
       avatar: req.fromUser.avatarUrl || "",
       message: req.message || "",

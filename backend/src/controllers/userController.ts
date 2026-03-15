@@ -1,5 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
+import { formatAcademicYear } from "../models/userModel";
 import {
   getCurrentUserById,
   getRawUserById,
@@ -138,8 +139,8 @@ export async function getUserProfileById(req: AuthRequest, res: Response) {
       id: user.id,
       name: user.name,
       branch: user.branch,
-      degree: (user as any).degree || "B.Tech",
-      year: user.year,
+      degree: (user as any).degree || "SRM Program",
+      year: formatAcademicYear(user.year),
       avatarUrl: user.avatarUrl || "",
       bio: user.bio || "",
       posts: (user as any).posts ?? 0,

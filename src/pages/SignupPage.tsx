@@ -15,26 +15,13 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { SRM_PROGRAM_GROUPS, SRM_YEAR_OPTIONS } from '../constants/academicOptions';
 import type { SignupPayload as SignupData } from '../types';
 import logo from '../assets/UniSphere.jpeg';
 
 interface SignupPageProps {
   onGoLogin: () => void;
 }
-
-const BRANCHES = [
-  'Computer Science & Engineering',
-  'Data Science',
-  'Electronics & Communication',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Electrical Engineering',
-  'Information Technology',
-  'Biotechnology',
-  'Chemical Engineering',
-];
-
-const YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
 type SignupView = 'form' | 'otp';
 
@@ -82,7 +69,7 @@ export default function SignupPage({ onGoLogin }: SignupPageProps) {
     else if (!form.email.trim().toLowerCase().endsWith('@srmist.edu.in')) {
       errs.email = 'Please use your university email (@srmist.edu.in).';
     }
-    if (!form.branch) errs.branch = 'Please select your branch.';
+    if (!form.branch) errs.branch = 'Please select your department or program.';
     if (!form.year) errs.year = 'Please select your year.';
     if (!form.password) errs.password = 'Password is required.';
     else if (form.password.length < 6) errs.password = 'Password must be at least 6 characters.';
@@ -371,13 +358,17 @@ export default function SignupPage({ onGoLogin }: SignupPageProps) {
                       className={`${inputBase} appearance-none pr-9`}
                       style={inputStyle(fieldErrors.branch)}
                     >
-                      <option value="" style={{ background: '#0a0e1a' }}>
-                        Select Branch
+                        <option value="" style={{ background: '#0a0e1a' }}>
+                        Select Department / Program
                       </option>
-                      {BRANCHES.map((b) => (
-                        <option key={b} value={b} style={{ background: '#0a0e1a' }}>
-                          {b}
-                        </option>
+                      {SRM_PROGRAM_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.options.map((option) => (
+                            <option key={option} value={option} style={{ background: '#0a0e1a' }}>
+                              {option}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                     <ChevronDown
@@ -400,12 +391,16 @@ export default function SignupPage({ onGoLogin }: SignupPageProps) {
                       className={`${inputBase} appearance-none pr-9`}
                       style={inputStyle(fieldErrors.year)}
                     >
-                      <option value="" style={{ background: '#0a0e1a' }}>
+                        <option value="" style={{ background: '#0a0e1a' }}>
                         Select Year
                       </option>
-                      {YEARS.map((y) => (
-                        <option key={y} value={y} style={{ background: '#0a0e1a' }}>
-                          {y}
+                      {SRM_YEAR_OPTIONS.map((yearOption) => (
+                        <option
+                          key={yearOption.value}
+                          value={yearOption.value}
+                          style={{ background: '#0a0e1a' }}
+                        >
+                          {yearOption.label}
                         </option>
                       ))}
                     </select>

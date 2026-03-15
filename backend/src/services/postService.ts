@@ -149,6 +149,24 @@ async function migrateLegacyUploadImage(rawPost: { id: number; image?: string | 
   }
 }
 
+export async function migrateLegacyPostImagesToDatabase() {
+  const legacyPosts = await prisma.post.findMany({
+    where: {
+      image: {
+        contains: "/uploads/",
+      },
+    },
+    select: {
+      id: true,
+      image: true,
+    },
+  });
+
+  for (const post of legacyPosts) {
+    await migrateLegacyUploadImage(post);
+  }
+}
+
 function validatePostType(type?: PostType) {
   return !!type && ["news", "clubs", "students"].includes(type);
 }

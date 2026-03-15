@@ -29,6 +29,16 @@ export interface SignupPayload {
   role: UserRole;
 }
 
+export function parseAcademicYear(value: unknown) {
+  const parsed = Number.parseInt(String(value), 10);
+  return parsed >= 1 && parsed <= 5 ? parsed : null;
+}
+
+export function formatAcademicYear(value: unknown) {
+  const parsed = parseAcademicYear(value);
+  return parsed ? `Year ${parsed}` : "";
+}
+
 export function sanitizeUser(user: User) {
   return {
     id: user.id,
@@ -37,7 +47,7 @@ export function sanitizeUser(user: User) {
     regNumber: user.regNumber,
     branch: user.branch,
     degree: user.degree,
-    year: user.year,
+    year: formatAcademicYear(user.year),
     role: user.role,
     bio: user.bio ?? "",
     avatarUrl: user.avatarUrl ?? "",

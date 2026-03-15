@@ -8,6 +8,7 @@ import postRoutes from "./routes/posts";
 import clubRoutes from "./routes/clubs";
 import notificationRoutes from "./routes/notifications";
 import { initializeMailer } from "./lib/mailer";
+import { migrateLegacyPostImagesToDatabase } from "./services/postService";
 
 dotenv.config();
 
@@ -71,4 +72,5 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log("Allowed origins:", allowedOrigins);
   initializeMailer();
+  void migrateLegacyPostImagesToDatabase();
 });
