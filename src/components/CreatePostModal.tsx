@@ -140,7 +140,6 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
   const [eventDate, setEventDate] = useState('');
   const [eventTime, setEventTime] = useState('');
   const [eventLocation, setEventLocation] = useState('');
-  const [ctaLabel, setCtaLabel] = useState('');
   const [regLink, setRegLink] = useState('');
 
   const [showPreview, setShowPreview] = useState(false);
@@ -232,6 +231,17 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
     setImageFile(file);
   };
 
+  const normalizeRegistrationLink = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    return `https://${trimmed}`;
+  };
+
   const validate = () => {
     const errs: Record<string, string> = {};
 
@@ -257,7 +267,7 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
 
     if (regLink.trim()) {
       try {
-        const parsedUrl = new URL(regLink.trim());
+        const parsedUrl = new URL(normalizeRegistrationLink(regLink));
         if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
           errs.registerLink = 'Use a valid http or https URL.';
         }
@@ -324,8 +334,8 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
               time: postKind === 'event' ? eventTime || 'TBD' : undefined,
               location: postKind === 'event' ? eventLocation || 'TBD' : undefined,
               seats: null,
-              registerLabel: regLink ? ctaLabel.trim() || 'Register Now' : undefined,
-              registerLink: regLink || undefined,
+              registerLabel: regLink ? 'Register Now' : undefined,
+              registerLink: regLink ? normalizeRegistrationLink(regLink) : undefined,
             }
           : undefined,
       likes: 0,
@@ -349,6 +359,8 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
     setSubmitting(true);
 
     try {
+      const normalizedRegistrationLink = normalizeRegistrationLink(regLink);
+
       const result = await createPost({
         title: title.trim(),
         summary: summary.trim(),
@@ -360,8 +372,8 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
         eventDate: postKind === 'event' ? eventDate.trim() : undefined,
         eventTime: postKind === 'event' ? eventTime.trim() : undefined,
         eventLocation: postKind === 'event' ? eventLocation.trim() : undefined,
-        registerLabel: regLink.trim() ? ctaLabel.trim() || 'Register Now' : undefined,
-        registerLink: regLink.trim() || undefined,
+        registerLabel: normalizedRegistrationLink ? 'Register Now' : undefined,
+        registerLink: normalizedRegistrationLink || undefined,
         imageFile,
       });
 
@@ -416,7 +428,6 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
     setEventDate('');
     setEventTime('');
     setEventLocation('');
-    setCtaLabel('');
     setRegLink('');
 
     setShowPreview(false);
@@ -914,17 +925,8 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
 
               {sectionCard(
                 <>
-                  {label('Optional CTA')}
+                  {label('Registration Link (Optional, if applicable)')}
                   <div className="flex flex-col gap-3">
-                    <input
-                      type="text"
-                      value={ctaLabel}
-                      onChange={(e) => setCtaLabel(e.target.value)}
-                      placeholder="Button label (e.g. Register Now)"
-                      className={inputCls}
-                      style={inputStyle()}
-                    />
-
                     <div>
                       <div className="relative">
                         <Link2
@@ -938,12 +940,15 @@ export default function CreatePostModal({ isOpen, onClose }: CreatePostModalProp
                             setRegLink(e.target.value);
                             setErrors((p) => ({ ...p, registerLink: '' }));
                           }}
-                          placeholder="CTA URL (optional)"
+                          placeholder="Registration Link (optional)"
                           className={`${inputCls} pl-10`}
                           style={inputStyle(!!errors.registerLink)}
                         />
                       </div>
                       {fieldError('registerLink')}
+                      <p className="text-[10px] text-white/28 mt-2 ml-1">
+                        If provided, your post will show a Register Now button.
+                      </p>
                     </div>
                   </div>
                 </>
