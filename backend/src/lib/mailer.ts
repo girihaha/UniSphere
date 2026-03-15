@@ -7,7 +7,6 @@ const MAIL_CONNECTION_TIMEOUT_MS = 10_000;
 const MAIL_SOCKET_TIMEOUT_MS = 20_000;
 const MAIL_SEND_TIMEOUT_MS = 15_000;
 const GMAIL_SMTP_HOST = "smtp.gmail.com";
-const GMAIL_SMTP_PORT = 465;
 
 function normalizeMailPassword(password: string) {
   return password.replace(/\s+/g, "");
@@ -69,7 +68,24 @@ function getMailerFailureDetails(error: unknown) {
   };
 }
 
-function createTransporter() {
+function isConnectionFailure(error: unknown) {
+  const mailError = error as {
+    code?: string;
+    responseCode?: number;
+  };
+
+  return (
+    mailError?.code === "ETIMEDOUT" ||
+    mailError?.code === "ESOCKET" ||
+    mailError?.code === "ECONNECTION"
+  );
+}
+
+function createTransporter(config: {
+  port: number;
+  secure: boolean;
+  requireTLS: boolean;
+}) {
   if (!MAIL_USER || !MAIL_PASS) {
     console.error("[MAILER] Missing MAIL_USER or MAIL_PASS");
     return null;
@@ -81,16 +97,16 @@ function createTransporter() {
 
   console.log("[MAILER] Using Gmail SMTP transporter", {
     host: GMAIL_SMTP_HOST,
-    port: GMAIL_SMTP_PORT,
-    secure: true,
+    port: config.port,
+    secure: config.secure,
     user: maskEmail(MAIL_USER),
   });
 
   return nodemailer.createTransport({
     host: GMAIL_SMTP_HOST,
-    port: GMAIL_SMTP_PORT,
-    secure: true,
-    requireTLS: true,
+    port: config.port,
+    secure: config.secure,
+    requireTLS: config.requireTLS,
     auth: {
       user: MAIL_USER,
       pass: MAIL_PASS,
@@ -134,14 +150,27 @@ type OtpMailResult =
       error: string;
     };
 
+const GMAIL_TRANSPORT_OPTIONS = [
+  {
+    label: "gmail-smtps-465",
+    port: 465,
+    secure: true,
+    requireTLS: false,
+  },
+  {
+    label: "gmail-starttls-587",
+    port: 587,
+    secure: false,
+    requireTLS: true,
+  },
+] as const;
+
 export async function sendOtpMail(params: {
   to: string;
   otp: string;
   purpose: "signup" | "forgot_password";
 }): Promise<OtpMailResult> {
-  const transporter = createTransporter();
-
-  if (!transporter) {
+  if (!MAIL_USER || !MAIL_PASS) {
     console.error("[MAILER_DISABLED] OTP mail not sent because mail config is missing");
     return {
       success: false,
@@ -184,27 +213,56 @@ export async function sendOtpMail(params: {
     </div>
   `;
 
-  try {
-    const info = await withTimeout(
-      transporter.sendMail({
-        from: `"${MAIL_FROM_NAME}" <${MAIL_USER}>`,
-        to: params.to,
-        subject,
-        html,
-      }),
-      MAIL_SEND_TIMEOUT_MS,
-      "OTP mail send"
-    );
+  for (let index = 0; index < GMAIL_TRANSPORT_OPTIONS.length; index += 1) {
+    const option = GMAIL_TRANSPORT_OPTIONS[index];
+    const transporter = createTransporter(option);
 
-    console.log("[MAILER] OTP mail sent:", info.messageId);
+    if (!transporter) {
+      break;
+    }
 
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    const failure = getMailerFailureDetails(error);
-    console.error(failure.logMessage, failure.metadata);
-    return {
-      success: false,
-      error: failure.publicMessage,
-    };
+    try {
+      const info = await withTimeout(
+        transporter.sendMail({
+          from: `"${MAIL_FROM_NAME}" <${MAIL_USER}>`,
+          to: params.to,
+          subject,
+          html,
+        }),
+        MAIL_SEND_TIMEOUT_MS,
+        `OTP mail send via ${option.label}`
+      );
+
+      console.log("[MAILER] OTP mail sent:", {
+        messageId: info.messageId,
+        transport: option.label,
+      });
+
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      const failure = getMailerFailureDetails(error);
+      console.error(failure.logMessage, {
+        ...failure.metadata,
+        transport: option.label,
+      });
+
+      const hasNextOption = index < GMAIL_TRANSPORT_OPTIONS.length - 1;
+      if (!hasNextOption || !isConnectionFailure(error)) {
+        return {
+          success: false,
+          error: failure.publicMessage,
+        };
+      }
+
+      console.warn("[MAILER] Retrying OTP mail with alternate Gmail SMTP transport", {
+        fromTransport: option.label,
+        toTransport: GMAIL_TRANSPORT_OPTIONS[index + 1].label,
+      });
+    }
   }
+
+  return {
+    success: false,
+    error: "Unable to send OTP email right now. Please try again later.",
+  };
 }
