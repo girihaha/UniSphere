@@ -11,6 +11,12 @@ import {
   categories,
 } from '../services/clubService';
 
+interface ClubsPageProps {
+  selectedClubId?: number;
+  onOpenClub?: (clubId: number) => void;
+  onBackFromClub?: () => void;
+}
+
 function SectionHeader({
   title,
   action,
@@ -101,7 +107,11 @@ function normalizeClub(rawClub: any): any {
   };
 }
 
-export default function ClubsPage() {
+export default function ClubsPage({
+  selectedClubId,
+  onOpenClub,
+  onBackFromClub,
+}: ClubsPageProps) {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [clubs, setClubs] = useState<any[]>([]);
@@ -131,6 +141,36 @@ export default function ClubsPage() {
   useEffect(() => {
     loadClubsData();
   }, []);
+
+  useEffect(() => {
+    if (!selectedClubId) {
+      setSelectedClub(null);
+      return;
+    }
+
+    const matchedClub = clubs.find((club) => club.id === selectedClubId);
+    if (matchedClub) {
+      setSelectedClub(matchedClub);
+    }
+  }, [clubs, selectedClubId]);
+
+  const openClub = (club: any) => {
+    if (onOpenClub) {
+      onOpenClub(club.id);
+      return;
+    }
+
+    setSelectedClub(club);
+  };
+
+  const closeClub = () => {
+    if (onBackFromClub) {
+      onBackFromClub();
+      return;
+    }
+
+    setSelectedClub(null);
+  };
 
   const updateClubLocally = (clubId: number, isFollowing: boolean) => {
     setClubs((prev) =>
@@ -215,7 +255,7 @@ export default function ClubsPage() {
         club={selectedClub}
         followed={!!selectedClub.isFollowing}
         onToggleFollow={() => handleToggleFollow(selectedClub.id)}
-        onBack={() => setSelectedClub(null)}
+        onBack={closeClub}
       />
     );
   }
@@ -326,7 +366,7 @@ export default function ClubsPage() {
                 >
                   <div
                     className={`h-[96px] bg-gradient-to-br ${club.color} relative overflow-hidden cursor-pointer`}
-                    onClick={() => setSelectedClub(club)}
+                    onClick={() => openClub(club)}
                   >
                     {club.heroImage && (
                       <img
@@ -342,7 +382,7 @@ export default function ClubsPage() {
                   </div>
 
                   <div className="p-3.5">
-                    <div onClick={() => setSelectedClub(club)} className="cursor-pointer">
+                    <div onClick={() => openClub(club)} className="cursor-pointer">
                       <p className="text-[13px] font-bold text-white leading-tight tracking-tight mb-1">
                         {club.name}
                       </p>
@@ -437,7 +477,7 @@ export default function ClubsPage() {
                 >
                   <div
                     className="flex items-center gap-4 p-4 pb-3 cursor-pointer"
-                    onClick={() => setSelectedClub(club)}
+                    onClick={() => openClub(club)}
                   >
                     <ClubLogo club={club} size="md" />
 
