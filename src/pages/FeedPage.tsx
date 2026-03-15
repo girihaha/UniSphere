@@ -37,6 +37,10 @@ const FILTERS: { value: FilterValue; label: string }[] = [
   { value: 'students', label: 'Student Posts' },
 ];
 
+const FEED_PAGE_LOCK_MS = 520;
+const WHEEL_TRIGGER_THRESHOLD = 42;
+const SWIPE_TRIGGER_THRESHOLD = 56;
+
 function formatNumber(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return String(n);
@@ -235,7 +239,7 @@ function DetailView({
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-white leading-none">{authorMeta.displayName}</p>
               <p className="text-[10px] text-white/35 mt-0.5 font-medium">
-                {authorMeta.displayRole} · {item.time}
+                {authorMeta.displayRole} - {item.time}
               </p>
             </div>
           </div>
@@ -273,30 +277,21 @@ function DetailView({
                 {item.eventDetails.date && (
                   <div className="flex items-center gap-2.5">
                     <Calendar size={13} className="text-primary-400 flex-shrink-0" />
-                    <span className="text-[13px] font-semibold text-white/80">
-                      {item.eventDetails.date}
-                    </span>
+                    <span className="text-[13px] font-semibold text-white/80">{item.eventDetails.date}</span>
                   </div>
                 )}
-
                 {item.eventDetails.time && (
                   <div className="flex items-center gap-2.5">
                     <Clock size={13} className="text-primary-400 flex-shrink-0" />
-                    <span className="text-[13px] font-semibold text-white/80">
-                      {item.eventDetails.time}
-                    </span>
+                    <span className="text-[13px] font-semibold text-white/80">{item.eventDetails.time}</span>
                   </div>
                 )}
-
                 {item.eventDetails.location && (
                   <div className="flex items-center gap-2.5">
                     <MapPin size={13} className="text-primary-400 flex-shrink-0" />
-                    <span className="text-[13px] font-semibold text-white/80">
-                      {item.eventDetails.location}
-                    </span>
+                    <span className="text-[13px] font-semibold text-white/80">{item.eventDetails.location}</span>
                   </div>
                 )}
-
                 {item.eventDetails.seats !== null && item.eventDetails.seats !== undefined && (
                   <div className="flex items-center gap-2.5">
                     <Users size={13} className="text-primary-400 flex-shrink-0" />
@@ -306,7 +301,6 @@ function DetailView({
                   </div>
                 )}
               </div>
-
             </div>
           )}
 
@@ -331,7 +325,6 @@ function DetailView({
               <Heart size={14} fill={state.liked ? 'currentColor' : 'none'} strokeWidth={2.5} />
               {formatNumber(state.likes)}
             </button>
-
             <button
               onClick={onOpenComments}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl text-white/35 hover:text-white/60 hover:bg-white/5 transition-all active:scale-95"
@@ -339,7 +332,6 @@ function DetailView({
               <MessageCircle size={14} strokeWidth={2.5} />
               {item.comments}
             </button>
-
             <button
               onClick={onShare}
               className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl text-white/35 hover:text-white/60 hover:bg-white/5 transition-all active:scale-95"
@@ -347,7 +339,6 @@ function DetailView({
               <Share2 size={14} strokeWidth={2.5} />
               Share
             </button>
-
             <button
               onClick={() => onToggle('saved')}
               className={`ml-auto p-2 rounded-xl transition-all duration-200 active:scale-95 ${
@@ -394,6 +385,7 @@ function FeedCard({
   onShare,
   index,
   total,
+  distanceFromActive,
 }: {
   item: FeedItem;
   state: InteractionState;
@@ -403,11 +395,18 @@ function FeedCard({
   onShare: () => void;
   index: number;
   total: number;
+  distanceFromActive: number;
 }) {
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const authorMeta = getAuthorMeta(item);
   const kindAccent = getKindAccent(item);
+  const isActive = distanceFromActive === 0;
+  const isAhead = distanceFromActive > 0;
+  const cardOffsetY = distanceFromActive === 0 ? 0 : isAhead ? 20 : -12;
+  const cardScale = distanceFromActive === 0 ? 1 : isAhead ? 0.965 : 0.985;
+  const cardOpacity =
+    distanceFromActive === 0 ? 1 : Math.abs(distanceFromActive) === 1 ? 0.74 : 0.42;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -423,154 +422,169 @@ function FeedCard({
   return (
     <div
       className="relative flex-shrink-0"
-      style={{
-        height: '100dvh',
-        scrollSnapAlign: 'start',
-        scrollSnapStop: 'always',
-        transition: 'transform 220ms ease, opacity 220ms ease',
-        willChange: 'transform',
-      }}
+      style={{ height: '100%' }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="absolute inset-0">
-        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-[#0a0e1a]/55 to-[#0a0e1a]/15" />
-      </div>
-
       <div
-        className="absolute top-0 left-0 right-0 h-0.5"
-        style={{ background: 'rgba(255,255,255,0.08)', zIndex: 5 }}
+        className="absolute inset-x-3 top-3 bottom-6 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={{
+          transform: `translateY(${cardOffsetY}px) scale(${cardScale})`,
+          opacity: cardOpacity,
+          filter: isActive ? 'none' : 'saturate(0.9)',
+          willChange: 'transform, opacity',
+        }}
       >
         <div
-          className="h-full gradient-accent transition-all duration-300"
-          style={{ width: `${((index + 1) / total) * 100}%` }}
-        />
-      </div>
+          className="relative w-full h-full overflow-hidden"
+          style={{
+            borderRadius: isActive ? '34px' : '38px',
+            boxShadow: isActive
+              ? '0 26px 80px rgba(0,0,0,0.42)'
+              : '0 14px 40px rgba(0,0,0,0.22)',
+            border: `1px solid ${isActive ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.08)'}`,
+          }}
+        >
+          <div className="absolute inset-0">
+            <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0e1a] via-[#0a0e1a]/55 to-[#0a0e1a]/15" />
+          </div>
 
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-14 z-10">
-        <div className="flex items-center gap-2">
-          <TagBadge label={item.category} variant={item.categoryTag} dot />
-          {kindAccent && (
+          <div
+            className="absolute top-0 left-0 right-0 h-0.5"
+            style={{ background: 'rgba(255,255,255,0.08)', zIndex: 5 }}
+          >
             <div
-              className="flex items-center gap-1 px-2 py-1 rounded-full"
-              style={{
-                background: kindAccent.bg,
-                border: kindAccent.border,
-              }}
-            >
-              <kindAccent.icon size={9} className={kindAccent.textClass} />
-              <span className={`text-[9px] font-bold ${kindAccent.textClass}`}>{kindAccent.label}</span>
+              className="h-full gradient-accent transition-all duration-300"
+              style={{ width: `${((index + 1) / total) * 100}%` }}
+            />
+          </div>
+
+          <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-14 z-10">
+            <div className="flex items-center gap-2">
+              <TagBadge label={item.category} variant={item.categoryTag} dot />
+              {kindAccent && (
+                <div
+                  className="flex items-center gap-1 px-2 py-1 rounded-full"
+                  style={{
+                    background: kindAccent.bg,
+                    border: kindAccent.border,
+                  }}
+                >
+                  <kindAccent.icon size={9} className={kindAccent.textClass} />
+                  <span className={`text-[9px] font-bold ${kindAccent.textClass}`}>{kindAccent.label}</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {state.likes > 500 && (
-          <div
-            className="flex items-center gap-1 px-2 py-1 rounded-full"
-            style={{
-              background: 'rgba(245,158,11,0.18)',
-              border: '1px solid rgba(245,158,11,0.3)',
-            }}
-          >
-            <Flame size={9} className="text-amber-400" />
-            <span className="text-[9px] font-bold text-amber-300">Trending</span>
+            {state.likes > 500 && (
+              <div
+                className="flex items-center gap-1 px-2 py-1 rounded-full"
+                style={{
+                  background: 'rgba(245,158,11,0.18)',
+                  border: '1px solid rgba(245,158,11,0.3)',
+                }}
+              >
+                <Flame size={9} className="text-amber-400" />
+                <span className="text-[9px] font-bold text-amber-300">Trending</span>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle('liked');
-          }}
-          className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all duration-200 active:scale-90 ${
-            state.liked
-              ? 'text-rose-400 bg-rose-500/15'
-              : 'text-white/60 bg-black/30 hover:bg-black/50'
-          }`}
-          style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          <Heart size={18} fill={state.liked ? 'currentColor' : 'none'} strokeWidth={2} />
-          <span className="text-[9px] font-bold">{formatNumber(state.likes)}</span>
-        </button>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle('liked');
+              }}
+              className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all duration-200 active:scale-90 ${
+                state.liked
+                  ? 'text-rose-400 bg-rose-500/15 shadow-[0_10px_24px_rgba(244,63,94,0.22)]'
+                  : 'text-white/60 bg-black/30 hover:bg-black/50'
+              }`}
+              style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <Heart size={18} fill={state.liked ? 'currentColor' : 'none'} strokeWidth={2} />
+              <span className="text-[9px] font-bold">{formatNumber(state.likes)}</span>
+            </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenComments();
-          }}
-          className="flex flex-col items-center gap-1 p-3 rounded-2xl text-white/60 bg-black/30 hover:bg-black/50 transition-all active:scale-90"
-          style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          <MessageCircle size={18} strokeWidth={2} />
-          <span className="text-[9px] font-bold">{item.comments}</span>
-        </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenComments();
+              }}
+              className="flex flex-col items-center gap-1 p-3 rounded-2xl text-white/60 bg-black/30 hover:bg-black/50 transition-all active:scale-90"
+              style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <MessageCircle size={18} strokeWidth={2} />
+              <span className="text-[9px] font-bold">{item.comments}</span>
+            </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle('saved');
-          }}
-          className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all duration-200 active:scale-90 ${
-            state.saved
-              ? 'text-primary-400 bg-primary-500/15'
-              : 'text-white/60 bg-black/30 hover:bg-black/50'
-          }`}
-          style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          <Bookmark size={18} fill={state.saved ? 'currentColor' : 'none'} strokeWidth={2} />
-          <span className="text-[9px] font-bold">Save</span>
-        </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle('saved');
+              }}
+              className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all duration-200 active:scale-90 ${
+                state.saved
+                  ? 'text-primary-400 bg-primary-500/15'
+                  : 'text-white/60 bg-black/30 hover:bg-black/50'
+              }`}
+              style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <Bookmark size={18} fill={state.saved ? 'currentColor' : 'none'} strokeWidth={2} />
+              <span className="text-[9px] font-bold">Save</span>
+            </button>
 
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onShare();
-          }}
-          className="flex flex-col items-center gap-1 p-3 rounded-2xl text-white/60 bg-black/30 hover:bg-black/50 transition-all active:scale-90"
-          style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          <Share2 size={18} strokeWidth={2} />
-          <span className="text-[9px] font-bold">Share</span>
-        </button>
-      </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onShare();
+              }}
+              className="flex flex-col items-center gap-1 p-3 rounded-2xl text-white/60 bg-black/30 hover:bg-black/50 transition-all active:scale-90"
+              style={{ backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <Share2 size={18} strokeWidth={2} />
+              <span className="text-[9px] font-bold">Share</span>
+            </button>
+          </div>
 
-      <div className="absolute bottom-0 left-0 right-0 px-5 pb-28 z-10">
-        <div className="flex items-center gap-2.5 mb-3">
-          <Avatar src={authorMeta.avatar} name={authorMeta.displayName} size="sm" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-white leading-none">{authorMeta.displayName}</p>
-            <p className="text-[10px] text-white/45 mt-0.5">
-              {authorMeta.displayRole} · {item.time}
+          <div className="absolute bottom-0 left-0 right-0 px-5 pb-28 z-10">
+            <div className="flex items-center gap-2.5 mb-3">
+              <Avatar src={authorMeta.avatar} name={authorMeta.displayName} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white leading-none">{authorMeta.displayName}</p>
+                <p className="text-[10px] text-white/45 mt-0.5">
+                  {authorMeta.displayRole} - {item.time}
+                </p>
+              </div>
+            </div>
+
+            <h2
+              className="text-[22px] font-extrabold text-white leading-tight mb-2 pr-14"
+              style={{ letterSpacing: '-0.025em', textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}
+            >
+              {item.title}
+            </h2>
+
+            <p className="text-[13px] text-white/60 leading-relaxed pr-16 line-clamp-2 font-medium mb-4">
+              {item.summary}
             </p>
+
+            <button
+              onClick={onOpenDetail}
+              className="flex items-center gap-2 text-xs font-bold text-primary-400 active:scale-95 transition-transform"
+            >
+              <span>Read more</span>
+              <div
+                className="px-2 py-0.5 rounded-lg text-[10px]"
+                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)' }}
+              >
+                swipe left
+              </div>
+            </button>
           </div>
         </div>
-
-        <h2
-          className="text-[22px] font-extrabold text-white leading-tight mb-2 pr-14"
-          style={{ letterSpacing: '-0.025em', textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}
-        >
-          {item.title}
-        </h2>
-
-        <p className="text-[13px] text-white/60 leading-relaxed pr-16 line-clamp-2 font-medium mb-4">
-          {item.summary}
-        </p>
-
-        <button
-          onClick={onOpenDetail}
-          className="flex items-center gap-2 text-xs font-bold text-primary-400 active:scale-95 transition-transform"
-        >
-          <span>Read more</span>
-          <div
-            className="px-2 py-0.5 rounded-lg text-[10px]"
-            style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)' }}
-          >
-            swipe ←
-          </div>
-        </button>
       </div>
     </div>
   );
@@ -585,6 +599,13 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
   const [createOpen, setCreateOpen] = useState(false);
   const [commentsItem, setCommentsItem] = useState<FeedItem | null>(null);
   const [shareToast, setShareToast] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const pagingLockedRef = useRef(false);
+  const wheelDeltaRef = useRef(0);
+  const lastWheelTsRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const touchStartXRef = useRef(0);
+  const touchLockedRef = useRef(false);
 
   useEffect(() => {
     if (filter === 'general') {
@@ -594,6 +615,10 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
     }
   }, [filter, refreshFeed]);
 
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [filter]);
+
   const getInteraction = useCallback(
     (item: FeedItem): InteractionState => {
       return interactions[item.id] ?? { liked: item.liked, saved: item.saved, likes: item.likes };
@@ -602,6 +627,111 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
   );
 
   const displayedItems = allItems;
+
+  useEffect(() => {
+    if (displayedItems.length === 0) {
+      setActiveIndex(0);
+      return;
+    }
+
+    setActiveIndex((current) => Math.min(current, displayedItems.length - 1));
+  }, [displayedItems.length]);
+
+  const pageToIndex = useCallback(
+    (nextIndex: number) => {
+      if (displayedItems.length === 0) return;
+
+      const boundedIndex = Math.max(0, Math.min(nextIndex, displayedItems.length - 1));
+      if (boundedIndex === activeIndex) return;
+
+      pagingLockedRef.current = true;
+      setActiveIndex(boundedIndex);
+
+      window.setTimeout(() => {
+        pagingLockedRef.current = false;
+      }, FEED_PAGE_LOCK_MS);
+    },
+    [activeIndex, displayedItems.length]
+  );
+
+  const pageBy = useCallback(
+    (delta: -1 | 1) => {
+      pageToIndex(activeIndex + delta);
+    },
+    [activeIndex, pageToIndex]
+  );
+
+  const handleWheelNavigation = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (detailItem || commentsItem || createOpen || displayedItems.length <= 1) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (pagingLockedRef.current) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastWheelTsRef.current > 180) {
+        wheelDeltaRef.current = 0;
+      }
+
+      lastWheelTsRef.current = now;
+      wheelDeltaRef.current += event.deltaY;
+
+      if (Math.abs(wheelDeltaRef.current) < WHEEL_TRIGGER_THRESHOLD) {
+        return;
+      }
+
+      const direction = wheelDeltaRef.current > 0 ? 1 : -1;
+      wheelDeltaRef.current = 0;
+      pageBy(direction as -1 | 1);
+    },
+    [commentsItem, createOpen, detailItem, displayedItems.length, pageBy]
+  );
+
+  const handleFeedTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (detailItem || commentsItem || createOpen) {
+        return;
+      }
+
+      const touch = event.touches[0];
+      touchStartYRef.current = touch.clientY;
+      touchStartXRef.current = touch.clientX;
+      touchLockedRef.current = false;
+    },
+    [commentsItem, createOpen, detailItem]
+  );
+
+  const handleFeedTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (
+        detailItem ||
+        commentsItem ||
+        createOpen ||
+        pagingLockedRef.current ||
+        touchLockedRef.current ||
+        displayedItems.length <= 1
+      ) {
+        return;
+      }
+
+      const touch = event.changedTouches[0];
+      const deltaY = touch.clientY - touchStartYRef.current;
+      const deltaX = touch.clientX - touchStartXRef.current;
+
+      if (Math.abs(deltaY) < SWIPE_TRIGGER_THRESHOLD || Math.abs(deltaY) <= Math.abs(deltaX)) {
+        return;
+      }
+
+      pageBy(deltaY < 0 ? 1 : -1);
+      touchLockedRef.current = true;
+    },
+    [commentsItem, createOpen, detailItem, displayedItems.length, pageBy]
+  );
 
   const toggle = useCallback(async (id: number, type: 'liked' | 'saved', currentState: InteractionState) => {
     const nextState: InteractionState = {
@@ -677,36 +807,60 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
       <ShareToast visible={shareToast} />
 
       <div
+        onWheel={handleWheelNavigation}
+        onTouchStart={handleFeedTouchStart}
+        onTouchEnd={handleFeedTouchEnd}
         style={{
           height: '100%',
-          overflowY: 'auto',
-          scrollSnapType: 'y proximity',
-          scrollBehavior: 'smooth',
-          overscrollBehaviorY: 'contain',
-          scrollPaddingTop: '8px',
-          scrollPaddingBottom: '8px',
-          WebkitOverflowScrolling: 'touch',
+          overflow: 'hidden',
+          position: 'relative',
+          touchAction: 'pan-x pinch-zoom',
+          background:
+            'radial-gradient(circle at top center, rgba(99,102,241,0.16) 0%, rgba(10,14,26,0.98) 36%, #070b15 100%)',
         }}
       >
-        {displayedItems.map((item, index) => (
-          <FeedCard
-            key={item.id}
-            item={item}
-            state={getInteraction(item)}
-            onToggle={(type) => toggle(item.id, type, getInteraction(item))}
-            onOpenDetail={() => openDetail(item)}
-            onOpenComments={() => setCommentsItem(item)}
-            onShare={handleShare}
-            index={index}
-            total={displayedItems.length}
-          />
-        ))}
+        {displayedItems.length > 0 && (
+          <>
+            <div
+              className="pointer-events-none absolute inset-x-6 top-5 h-8 rounded-[28px]"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.04)',
+                transform: 'translateY(18px) scale(0.965)',
+                filter: 'blur(1px)',
+              }}
+            />
+
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                transform: `translate3d(0, -${activeIndex * 100}%, 0)`,
+                transition: 'transform 540ms cubic-bezier(0.22,1,0.36,1)',
+                willChange: 'transform',
+              }}
+            >
+              {displayedItems.map((item, index) => (
+                <FeedCard
+                  key={item.id}
+                  item={item}
+                  state={getInteraction(item)}
+                  onToggle={(type) => toggle(item.id, type, getInteraction(item))}
+                  onOpenDetail={() => openDetail(item)}
+                  onOpenComments={() => setCommentsItem(item)}
+                  onShare={handleShare}
+                  index={index}
+                  total={displayedItems.length}
+                  distanceFromActive={index - activeIndex}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
         {displayedItems.length === 0 && (
-          <div
-            className="flex items-center justify-center"
-            style={{ height: '100dvh', scrollSnapAlign: 'start' }}
-          >
+          <div className="flex items-center justify-center" style={{ height: '100dvh' }}>
             <div className="text-center px-8">
               <div className="w-16 h-16 glass-strong rounded-3xl flex items-center justify-center mx-auto mb-4">
                 <X size={24} className="text-white/25" />
@@ -716,6 +870,26 @@ export default function FeedPage({ onOpenNotifications }: { onOpenNotifications?
                 {filter === 'general' ? 'Create the first post' : 'Try a different filter'}
               </p>
             </div>
+          </div>
+        )}
+
+        {displayedItems.length > 1 && (
+          <div className="pointer-events-none absolute right-4 bottom-[98px] z-20 flex flex-col items-center gap-2">
+            {displayedItems.map((item, index) => (
+              <div
+                key={item.id}
+                style={{
+                  width: index === activeIndex ? 8 : 6,
+                  height: index === activeIndex ? 22 : 6,
+                  borderRadius: 999,
+                  background:
+                    index === activeIndex
+                      ? 'linear-gradient(180deg, rgba(129,140,248,1) 0%, rgba(167,139,250,0.92) 100%)'
+                      : 'rgba(255,255,255,0.22)',
+                  transition: 'all 220ms ease',
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
