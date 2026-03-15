@@ -1,29 +1,107 @@
 import nodemailer from "nodemailer";
 
-const MAIL_USER = process.env.MAIL_USER || "";
-const MAIL_PASS = process.env.MAIL_PASS || "";
+const MAIL_USER = (process.env.MAIL_USER || "").trim();
+const RAW_MAIL_PASS = process.env.MAIL_PASS || "";
 const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME || "UniSphere";
 const MAIL_CONNECTION_TIMEOUT_MS = 10_000;
 const MAIL_SOCKET_TIMEOUT_MS = 20_000;
 const MAIL_SEND_TIMEOUT_MS = 15_000;
+const GMAIL_SMTP_HOST = "smtp.gmail.com";
+const GMAIL_SMTP_PORT = 465;
+
+function normalizeMailPassword(password: string) {
+  return password.replace(/\s+/g, "");
+}
+
+const MAIL_PASS = normalizeMailPassword(RAW_MAIL_PASS);
+
+function maskEmail(email: string) {
+  const [localPart = "", domain = ""] = email.split("@");
+  if (!localPart || !domain) return "[invalid-email]";
+  if (localPart.length <= 2) return `${localPart[0] || "*"}*@${domain}`;
+  return `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`;
+}
+
+function getMailerFailureDetails(error: unknown) {
+  const mailError = error as {
+    code?: string;
+    command?: string;
+    responseCode?: number;
+    response?: string;
+    message?: string;
+  };
+
+  const metadata = {
+    code: mailError?.code || "UNKNOWN",
+    command: mailError?.command || "unknown",
+    responseCode: mailError?.responseCode || null,
+    response: mailError?.response || null,
+    message: mailError?.message || "Unknown mailer error",
+  };
+
+  if (metadata.code === "EAUTH" || metadata.responseCode === 535) {
+    return {
+      logMessage: "[MAILER_ERROR] Gmail authentication failed",
+      publicMessage:
+        "Unable to send OTP email because the mail account authentication failed. Please check Railway mail configuration.",
+      metadata,
+    };
+  }
+
+  if (
+    metadata.code === "ETIMEDOUT" ||
+    metadata.code === "ESOCKET" ||
+    metadata.code === "ECONNECTION"
+  ) {
+    return {
+      logMessage: "[MAILER_ERROR] Gmail SMTP connection failed",
+      publicMessage:
+        "Unable to send OTP email because the mail server connection failed. Please try again later.",
+      metadata,
+    };
+  }
+
+  return {
+    logMessage: "[MAILER_ERROR] OTP email send failed",
+    publicMessage:
+      "Unable to send OTP email right now. Please try again later.",
+    metadata,
+  };
+}
 
 function createTransporter() {
   if (!MAIL_USER || !MAIL_PASS) {
-    console.log("[MAILER] Missing MAIL_USER or MAIL_PASS");
+    console.error("[MAILER] Missing MAIL_USER or MAIL_PASS");
     return null;
   }
 
-  console.log("[MAILER] Using Gmail transporter for:", MAIL_USER);
+  if (RAW_MAIL_PASS !== MAIL_PASS) {
+    console.warn("[MAILER] Normalized MAIL_PASS by removing whitespace");
+  }
+
+  console.log("[MAILER] Using Gmail SMTP transporter", {
+    host: GMAIL_SMTP_HOST,
+    port: GMAIL_SMTP_PORT,
+    secure: true,
+    user: maskEmail(MAIL_USER),
+  });
 
   return nodemailer.createTransport({
-    service: "gmail",
+    host: GMAIL_SMTP_HOST,
+    port: GMAIL_SMTP_PORT,
+    secure: true,
+    requireTLS: true,
     auth: {
       user: MAIL_USER,
       pass: MAIL_PASS,
     },
+    authMethod: "LOGIN",
     connectionTimeout: MAIL_CONNECTION_TIMEOUT_MS,
     greetingTimeout: MAIL_CONNECTION_TIMEOUT_MS,
     socketTimeout: MAIL_SOCKET_TIMEOUT_MS,
+    tls: {
+      servername: GMAIL_SMTP_HOST,
+    },
   });
 }
 
@@ -46,18 +124,30 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   });
 }
 
+type OtpMailResult =
+  | {
+      success: true;
+      messageId: string;
+    }
+  | {
+      success: false;
+      error: string;
+    };
+
 export async function sendOtpMail(params: {
   to: string;
   otp: string;
   purpose: "signup" | "forgot_password";
-}) {
+}): Promise<OtpMailResult> {
   const transporter = createTransporter();
 
   if (!transporter) {
-    console.log(
-      `[MAILER_DISABLED] OTP for ${params.to}: ${params.otp} (${params.purpose})`
-    );
-    return { success: true, fallback: true };
+    console.error("[MAILER_DISABLED] OTP mail not sent because mail config is missing");
+    return {
+      success: false,
+      error:
+        "Unable to send OTP email because the server mail configuration is missing. Please check Railway mail settings.",
+    };
   }
 
   const subject =
@@ -108,12 +198,13 @@ export async function sendOtpMail(params: {
 
     console.log("[MAILER] OTP mail sent:", info.messageId);
 
-    return { success: true, fallback: false };
+    return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error("[MAILER_ERROR]", error);
-    console.log(
-      `[MAILER_FALLBACK_OTP] OTP for ${params.to}: ${params.otp} (${params.purpose})`
-    );
-    return { success: true, fallback: true };
+    const failure = getMailerFailureDetails(error);
+    console.error(failure.logMessage, failure.metadata);
+    return {
+      success: false,
+      error: failure.publicMessage,
+    };
   }
 }

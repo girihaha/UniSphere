@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import type { PendingSignup } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import { prisma } from "../lib/prisma";
 import { sendOtpMail } from "../lib/mailer";
@@ -98,10 +99,37 @@ async function sendOtpEmail(
   otp: string,
   purpose: "signup" | "forgot_password"
 ) {
-  await sendOtpMail({
+  return sendOtpMail({
     to: email,
     otp,
     purpose,
+  });
+}
+
+async function restorePendingSignup(
+  email: string,
+  previousPendingSignup: PendingSignup | null
+) {
+  if (!previousPendingSignup) {
+    await prisma.pendingSignup.deleteMany({
+      where: { email },
+    });
+    return;
+  }
+
+  await prisma.pendingSignup.update({
+    where: { email },
+    data: {
+      name: previousPendingSignup.name,
+      password: previousPendingSignup.password,
+      regNumber: previousPendingSignup.regNumber,
+      branch: previousPendingSignup.branch,
+      year: previousPendingSignup.year,
+      role: previousPendingSignup.role,
+      otpHash: previousPendingSignup.otpHash,
+      expiresAt: previousPendingSignup.expiresAt,
+      createdAt: previousPendingSignup.createdAt,
+    },
   });
 }
 
@@ -158,6 +186,9 @@ export async function signupUser(data: SignupPayload) {
   const otpHash = await hashOtp(otp);
   const passwordHash = await bcrypt.hash(data.password, 10);
   const normalizedYear = Number.parseInt(String(data.year), 10);
+  const existingPendingSignup = await prisma.pendingSignup.findUnique({
+    where: { email: normalizedEmail },
+  });
 
   await prisma.pendingSignup.upsert({
     where: { email: normalizedEmail },
@@ -185,7 +216,12 @@ export async function signupUser(data: SignupPayload) {
     },
   });
 
-  await sendOtpEmail(normalizedEmail, otp, "signup");
+  const mailResult = await sendOtpEmail(normalizedEmail, otp, "signup");
+
+  if (mailResult.success === false) {
+    await restorePendingSignup(normalizedEmail, existingPendingSignup);
+    return { error: mailResult.error };
+  }
 
   return {
     requiresOtp: true,
@@ -282,6 +318,7 @@ export async function resendSignupOtp(email: string) {
 
   const otp = generateOtp();
   const otpHash = await hashOtp(otp);
+  const previousPendingSignup = pendingSignup;
 
   await prisma.pendingSignup.update({
     where: { email: normalizedEmail },
@@ -292,7 +329,12 @@ export async function resendSignupOtp(email: string) {
     },
   });
 
-  await sendOtpEmail(normalizedEmail, otp, "signup");
+  const mailResult = await sendOtpEmail(normalizedEmail, otp, "signup");
+
+  if (mailResult.success === false) {
+    await restorePendingSignup(normalizedEmail, previousPendingSignup);
+    return { error: mailResult.error };
+  }
 
   return {
     success: true,
@@ -343,7 +385,7 @@ export async function requestForgotPasswordOtp(
   const otp = generateOtp();
   const otpHash = await hashOtp(otp);
 
-  await prisma.passwordResetOtp.create({
+  const createdOtp = await prisma.passwordResetOtp.create({
     data: {
       email: normalizedEmail,
       otpHash,
@@ -351,7 +393,14 @@ export async function requestForgotPasswordOtp(
     },
   });
 
-  await sendOtpEmail(normalizedEmail, otp, "forgot_password");
+  const mailResult = await sendOtpEmail(normalizedEmail, otp, "forgot_password");
+
+  if (mailResult.success === false) {
+    await prisma.passwordResetOtp.delete({
+      where: { id: createdOtp.id },
+    });
+    return { error: mailResult.error };
+  }
 
   return {
     success: true,
