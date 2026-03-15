@@ -36,22 +36,12 @@ async function getActorRole(userId: string) {
   return "Student";
 }
 
-function getBaseUrl(req: AuthRequest) {
-  const configuredBaseUrl =
-    process.env.BACKEND_PUBLIC_URL?.trim() ||
-    process.env.API_PUBLIC_URL?.trim() ||
-    process.env.PUBLIC_API_URL?.trim();
-
-  if (configuredBaseUrl) {
-    return configuredBaseUrl.replace(/\/$/, "");
+function buildInlineImage(req: AuthRequest) {
+  if (!req.file?.buffer || !req.file.mimetype) {
+    return "";
   }
 
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const protocol = forwardedProto || req.protocol;
-  const host = forwardedHost || req.get("host");
-
-  return `${protocol}://${host}`;
+  return `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 }
 
 async function createPostOwnerNotification(
@@ -123,8 +113,7 @@ export async function createNewPost(req: AuthRequest, res: Response) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const baseUrl = getBaseUrl(req);
-  const image = req.file ? `${baseUrl}/uploads/${req.file.filename}` : "";
+  const image = req.file ? buildInlineImage(req) : "";
 
   const eventDate = req.body.eventDate?.trim?.() || "";
   const eventTime = req.body.eventTime?.trim?.() || "";

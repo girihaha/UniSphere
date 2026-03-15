@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+import path from "path";
 import { prisma } from "../lib/prisma";
 import {
   CreatePostPayload,
@@ -92,6 +94,61 @@ function normalizePostImageUrl(image?: string | null) {
   return image;
 }
 
+function resolveLegacyUploadPath(image: string) {
+  if (image.startsWith("/uploads/")) {
+    return path.join(process.cwd(), image.replace(/^\/+/, ""));
+  }
+
+  try {
+    const parsedUrl = new URL(image);
+
+    if (!parsedUrl.pathname.startsWith("/uploads/")) {
+      return "";
+    }
+
+    return path.join(process.cwd(), parsedUrl.pathname.replace(/^\/+/, ""));
+  } catch {
+    return "";
+  }
+}
+
+function getMimeTypeFromExtension(filePath: string) {
+  const extension = path.extname(filePath).slice(1).toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  if (extension === "gif") return "image/gif";
+  if (extension === "svg") return "image/svg+xml";
+
+  return "application/octet-stream";
+}
+
+async function migrateLegacyUploadImage(rawPost: { id: number; image?: string | null }) {
+  if (!rawPost.image || rawPost.image.startsWith("data:")) {
+    return rawPost.image || "";
+  }
+
+  const legacyPath = resolveLegacyUploadPath(rawPost.image);
+  if (!legacyPath) {
+    return rawPost.image;
+  }
+
+  try {
+    const fileBuffer = await fs.readFile(legacyPath);
+    const inlineImage = `data:${getMimeTypeFromExtension(legacyPath)};base64,${fileBuffer.toString("base64")}`;
+
+    await prisma.post.update({
+      where: { id: rawPost.id },
+      data: { image: inlineImage },
+    });
+
+    return inlineImage;
+  } catch {
+    return rawPost.image;
+  }
+}
+
 function validatePostType(type?: PostType) {
   return !!type && ["news", "clubs", "students"].includes(type);
 }
@@ -116,6 +173,7 @@ async function getClubAuthorData(clubId: number) {
 }
 
 async function buildPostView(rawPost: any, userId?: string): Promise<Post> {
+  const persistedImage = await migrateLegacyUploadImage(rawPost);
   const likeCount = await prisma.postLike.count({
     where: { postId: rawPost.id },
   });
@@ -161,7 +219,7 @@ async function buildPostView(rawPost: any, userId?: string): Promise<Post> {
     comments: commentCount,
     saved,
     liked,
-    image: normalizePostImageUrl(rawPost.image),
+    image: normalizePostImageUrl(persistedImage),
     clubId: rawPost.clubId ?? undefined,
     clubName: rawPost.clubName || undefined,
     clubAvatar: rawPost.clubAvatar || undefined,

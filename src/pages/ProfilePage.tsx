@@ -662,6 +662,50 @@ function SavedPostDetailModal({
   );
 }
 
+function SavedPostsLibraryModal({
+  isOpen,
+  posts,
+  onClose,
+  onSelectPost,
+}: {
+  isOpen: boolean;
+  posts: Post[];
+  onClose: () => void;
+  onSelectPost: (post: Post) => void;
+}) {
+  return (
+    <ModalContainer isOpen={isOpen} onClose={onClose} title="Saved Posts">
+      <div className="py-2">
+        {posts.length === 0 ? (
+          <div
+            className="rounded-3xl px-4 py-5"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <p className="text-sm font-bold text-white/45">No saved posts yet</p>
+            <p className="text-[12px] text-white/25 mt-1">Save posts from the feed and they will appear here.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {posts.map((post) => (
+              <button
+                key={post.id}
+                type="button"
+                className="h-full text-left"
+                onClick={() => onSelectPost(post)}
+              >
+                <SavedPostCard post={post} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </ModalContainer>
+  );
+}
+
 interface ProfilePageProps {
   onLogout?: () => void;
   onOpenMyPosts?: () => void;
@@ -707,6 +751,7 @@ export default function ProfilePage({
   const [recentConnections, setRecentConnections] = useState<RecentConnection[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
+  const [savedPostsModal, setSavedPostsModal] = useState(false);
   const [selectedSavedPost, setSelectedSavedPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -719,6 +764,7 @@ export default function ProfilePage({
 
   const isAdmin = user?.role === 'super_admin' || user?.role === 'club_admin';
   const isSuperAdmin = user?.role === 'super_admin';
+  const savedPostsPreview = savedPosts.slice(0, 2);
 
   const pendingCount = pendingPosts.filter(
     (p) => p.status === 'pending_club_review' || p.status === 'pending_admin_review'
@@ -1060,7 +1106,11 @@ export default function ProfilePage({
       </div>
 
       <div className="px-4 mb-5">
-        <SectionHeader title="Saved Posts" />
+        <SectionHeader
+          title="Saved Posts"
+          action={savedPosts.length > 0 ? 'View All' : undefined}
+          onAction={savedPosts.length > 0 ? () => setSavedPostsModal(true) : undefined}
+        />
         {savedPosts.length === 0 ? (
           <div
             className="rounded-3xl px-4 py-5"
@@ -1074,7 +1124,7 @@ export default function ProfilePage({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {savedPosts.map((post) => (
+            {savedPostsPreview.map((post) => (
               <button
                 key={post.id}
                 type="button"
@@ -1433,6 +1483,16 @@ export default function ProfilePage({
       />
 
       <AboutUniSphereModal isOpen={aboutModal} onClose={() => setAboutModal(false)} />
+
+      <SavedPostsLibraryModal
+        isOpen={savedPostsModal}
+        posts={savedPosts}
+        onClose={() => setSavedPostsModal(false)}
+        onSelectPost={(post) => {
+          setSavedPostsModal(false);
+          setSelectedSavedPost(post);
+        }}
+      />
 
       <SavedPostDetailModal
         post={selectedSavedPost}
