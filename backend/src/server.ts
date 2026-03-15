@@ -7,6 +7,7 @@ import userRoutes from "./routes/users";
 import postRoutes from "./routes/posts";
 import clubRoutes from "./routes/clubs";
 import notificationRoutes from "./routes/notifications";
+import { initializeMailer } from "./lib/mailer";
 
 dotenv.config();
 
@@ -68,4 +69,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log("Allowed origins:", allowedOrigins);
+  initializeMailer();
 });

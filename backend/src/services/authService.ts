@@ -220,7 +220,7 @@ export async function signupUser(data: SignupPayload) {
 
   if (mailResult.success === false) {
     await restorePendingSignup(normalizedEmail, existingPendingSignup);
-    return { error: mailResult.error };
+    return { error: mailResult.message };
   }
 
   return {
@@ -333,7 +333,7 @@ export async function resendSignupOtp(email: string) {
 
   if (mailResult.success === false) {
     await restorePendingSignup(normalizedEmail, previousPendingSignup);
-    return { error: mailResult.error };
+    return { error: mailResult.message };
   }
 
   return {
@@ -399,7 +399,7 @@ export async function requestForgotPasswordOtp(
     await prisma.passwordResetOtp.delete({
       where: { id: createdOtp.id },
     });
-    return { error: mailResult.error };
+    return { error: mailResult.message };
   }
 
   return {

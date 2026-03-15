@@ -1,30 +1,94 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 
-const MAIL_USER = (process.env.MAIL_USER || "").trim();
-const RAW_MAIL_PASS = process.env.MAIL_PASS || "";
-const MAIL_FROM_NAME = process.env.MAIL_FROM_NAME || "UniSphere";
-const MAIL_HOST = (process.env.MAIL_HOST || "").trim();
-const MAIL_PORT = Number(process.env.MAIL_PORT || 0);
-const MAIL_SECURE = (process.env.MAIL_SECURE || "").trim().toLowerCase();
-const MAIL_REQUIRE_TLS = (process.env.MAIL_REQUIRE_TLS || "").trim().toLowerCase();
-const MAIL_AUTH_METHOD = (process.env.MAIL_AUTH_METHOD || "").trim();
 const MAIL_CONNECTION_TIMEOUT_MS = 10_000;
 const MAIL_SOCKET_TIMEOUT_MS = 20_000;
 const MAIL_SEND_TIMEOUT_MS = 15_000;
-const GMAIL_SMTP_HOST = "smtp.gmail.com";
+const MAIL_VERIFY_CACHE_MS = 10 * 60 * 1000;
+
+type MailPurpose = "signup" | "forgot_password";
+
+type MailerConfig = {
+  host: string;
+  port: number;
+  secure: boolean;
+  requireTLS: boolean;
+  authMethod?: string;
+  user: string;
+  pass: string;
+  fromName: string;
+  fromEmail: string;
+  transportLabel: string;
+};
+
+type MailerState =
+  | "uninitialized"
+  | "ready"
+  | "verify_ok"
+  | "verify_failed"
+  | "disabled";
+
+type MailerInitResult =
+  | {
+      success: true;
+      errorCode: null;
+      message: string;
+      transportLabel: string;
+    }
+  | {
+      success: false;
+      errorCode: string;
+      message: string;
+      transportLabel: "disabled";
+    };
+
+export type MailSendResult =
+  | {
+      success: true;
+      errorCode: null;
+      message: string;
+      transportLabel: string;
+      messageId: string;
+    }
+  | {
+      success: false;
+      errorCode: string;
+      message: string;
+      transportLabel: string;
+      messageId?: undefined;
+    };
+
+type MailerFailureDetails = {
+  errorCode: string;
+  publicMessage: string;
+  metadata: {
+    code: string;
+    command: string;
+    responseCode: number | null;
+    response: string | null;
+    message: string;
+  };
+};
+
+let cachedTransporter: Transporter | null = null;
+let cachedConfig: MailerConfig | null = null;
+let cachedConfigKey: string | null = null;
+let mailerState: MailerState = "uninitialized";
+let verifyPromise: Promise<void> | null = null;
+let lastVerifiedAt: number | null = null;
 
 function normalizeMailPassword(password: string) {
   return password.replace(/\s+/g, "");
 }
 
-function parseBoolean(value: string | undefined, defaultValue: boolean) {
-  if (!value) return defaultValue;
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return defaultValue;
-}
+function parseBoolean(value: string | undefined) {
+  if (!value) return null;
 
-const MAIL_PASS = normalizeMailPassword(RAW_MAIL_PASS);
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+
+  return null;
+}
 
 function maskEmail(email: string) {
   const [localPart = "", domain = ""] = email.split("@");
@@ -33,7 +97,97 @@ function maskEmail(email: string) {
   return `${localPart[0]}***${localPart[localPart.length - 1]}@${domain}`;
 }
 
-function getMailerFailureDetails(error: unknown) {
+function readMailerConfig():
+  | {
+      success: true;
+      config: MailerConfig;
+    }
+  | {
+      success: false;
+      errorCode: string;
+      message: string;
+      invalidFields: string[];
+    } {
+  const rawHost = process.env.MAIL_HOST?.trim() || "";
+  const rawPort = process.env.MAIL_PORT?.trim() || "";
+  const rawSecure = process.env.MAIL_SECURE?.trim() || "";
+  const rawRequireTLS = process.env.MAIL_REQUIRE_TLS?.trim() || "";
+  const rawUser = process.env.MAIL_USER?.trim() || "";
+  const rawPass = process.env.MAIL_PASS || "";
+  const rawFromName = process.env.MAIL_FROM_NAME?.trim() || "UniSphere";
+  const rawFromEmail = process.env.MAIL_FROM_EMAIL?.trim() || rawUser;
+  const rawAuthMethod = process.env.MAIL_AUTH_METHOD?.trim() || "";
+
+  const invalidFields: string[] = [];
+
+  if (!rawHost) invalidFields.push("MAIL_HOST");
+  if (!rawPort) invalidFields.push("MAIL_PORT");
+  if (!rawSecure) invalidFields.push("MAIL_SECURE");
+  if (!rawUser) invalidFields.push("MAIL_USER");
+  if (!rawPass.trim()) invalidFields.push("MAIL_PASS");
+  if (!rawFromEmail) invalidFields.push("MAIL_FROM_EMAIL");
+
+  const parsedPort = Number(rawPort);
+  if (!Number.isInteger(parsedPort) || parsedPort <= 0) {
+    invalidFields.push("MAIL_PORT");
+  }
+
+  const parsedSecure = parseBoolean(rawSecure);
+  if (parsedSecure === null) {
+    invalidFields.push("MAIL_SECURE");
+  }
+
+  const parsedRequireTLS =
+    rawRequireTLS === "" ? null : parseBoolean(rawRequireTLS);
+  if (rawRequireTLS !== "" && parsedRequireTLS === null) {
+    invalidFields.push("MAIL_REQUIRE_TLS");
+  }
+
+  if (invalidFields.length > 0) {
+    return {
+      success: false,
+      errorCode: "MAIL_CONFIG_INVALID",
+      message:
+        "Mailer configuration is missing or malformed. Check Railway mail env vars.",
+      invalidFields: [...new Set(invalidFields)],
+    };
+  }
+
+  const normalizedPass = normalizeMailPassword(rawPass);
+
+  return {
+    success: true,
+    config: {
+      host: rawHost,
+      port: parsedPort,
+      secure: parsedSecure as boolean,
+      requireTLS:
+        parsedRequireTLS === null ? !(parsedSecure as boolean) : parsedRequireTLS,
+      authMethod: rawAuthMethod || undefined,
+      user: rawUser,
+      pass: normalizedPass,
+      fromName: rawFromName,
+      fromEmail: rawFromEmail,
+      transportLabel: `${rawHost}:${parsedPort}`,
+    },
+  };
+}
+
+function getConfigKey(config: MailerConfig) {
+  return JSON.stringify({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    requireTLS: config.requireTLS,
+    authMethod: config.authMethod || "",
+    user: config.user,
+    pass: config.pass,
+    fromName: config.fromName,
+    fromEmail: config.fromEmail,
+  });
+}
+
+function getMailerFailureDetails(error: unknown): MailerFailureDetails {
   const mailError = error as {
     code?: string;
     command?: string;
@@ -52,9 +206,9 @@ function getMailerFailureDetails(error: unknown) {
 
   if (metadata.code === "EAUTH" || metadata.responseCode === 535) {
     return {
-      logMessage: "[MAILER_ERROR] Gmail authentication failed",
+      errorCode: "SMTP_AUTH_FAILED",
       publicMessage:
-        "Unable to send OTP email because the mail account authentication failed. Please check Railway mail configuration.",
+        "Unable to send OTP email because SMTP authentication failed. Please check Railway mail configuration.",
       metadata,
     };
   }
@@ -65,7 +219,7 @@ function getMailerFailureDetails(error: unknown) {
     metadata.code === "ECONNECTION"
   ) {
     return {
-      logMessage: "[MAILER_ERROR] Gmail SMTP connection failed",
+      errorCode: "SMTP_CONNECTION_FAILED",
       publicMessage:
         "Unable to send OTP email because the mail server connection failed. Please try again later.",
       metadata,
@@ -73,67 +227,11 @@ function getMailerFailureDetails(error: unknown) {
   }
 
   return {
-    logMessage: "[MAILER_ERROR] OTP email send failed",
+    errorCode: "SMTP_SEND_FAILED",
     publicMessage:
       "Unable to send OTP email right now. Please try again later.",
     metadata,
   };
-}
-
-function isConnectionFailure(error: unknown) {
-  const mailError = error as {
-    code?: string;
-    responseCode?: number;
-  };
-
-  return (
-    mailError?.code === "ETIMEDOUT" ||
-    mailError?.code === "ESOCKET" ||
-    mailError?.code === "ECONNECTION"
-  );
-}
-
-function createTransporter(config: {
-  label: string;
-  host: string;
-  port: number;
-  secure: boolean;
-  requireTLS: boolean;
-}) {
-  if (!MAIL_USER || !MAIL_PASS) {
-    console.error("[MAILER] Missing MAIL_USER or MAIL_PASS");
-    return null;
-  }
-
-  if (RAW_MAIL_PASS !== MAIL_PASS) {
-    console.warn("[MAILER] Normalized MAIL_PASS by removing whitespace");
-  }
-
-  console.log("[MAILER] Using Gmail SMTP transporter", {
-    transport: config.label,
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    user: maskEmail(MAIL_USER),
-  });
-
-  return nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    requireTLS: config.requireTLS,
-    auth: {
-      user: MAIL_USER,
-      pass: MAIL_PASS,
-    },
-    ...(MAIL_AUTH_METHOD ? { authMethod: MAIL_AUTH_METHOD } : {}),
-    connectionTimeout: MAIL_CONNECTION_TIMEOUT_MS,
-    greetingTimeout: MAIL_CONNECTION_TIMEOUT_MS,
-    socketTimeout: MAIL_SOCKET_TIMEOUT_MS,
-    tls: {
-      servername: config.host,
-    },
-  });
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
@@ -155,72 +253,151 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string) {
   });
 }
 
-type OtpMailResult =
+function createReusableTransporter(config: MailerConfig) {
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    requireTLS: config.requireTLS,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+    ...(config.authMethod ? { authMethod: config.authMethod } : {}),
+    connectionTimeout: MAIL_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: MAIL_CONNECTION_TIMEOUT_MS,
+    socketTimeout: MAIL_SOCKET_TIMEOUT_MS,
+    tls: {
+      servername: config.host,
+    },
+    pool: true,
+    maxConnections: 2,
+    maxMessages: 25,
+  });
+}
+
+function ensureMailer():
   | {
       success: true;
-      messageId: string;
+      transporter: Transporter;
+      config: MailerConfig;
     }
   | {
       success: false;
-      error: string;
-    };
+      errorCode: string;
+      message: string;
+      transportLabel: "disabled";
+    } {
+  const configResult = readMailerConfig();
 
-const DEFAULT_GMAIL_TRANSPORT_OPTIONS = [
-  {
-    label: "gmail-smtps-465",
-    host: GMAIL_SMTP_HOST,
-    port: 465,
-    secure: true,
-    requireTLS: false,
-  },
-  {
-    label: "gmail-starttls-587",
-    host: GMAIL_SMTP_HOST,
-    port: 587,
-    secure: false,
-    requireTLS: true,
-  },
-] as const;
+  if (configResult.success === false) {
+    cachedTransporter = null;
+    cachedConfig = null;
+    cachedConfigKey = null;
+    mailerState = "disabled";
 
-const CUSTOM_MAIL_TRANSPORT_OPTIONS =
-  MAIL_HOST && MAIL_PORT
-    ? [
-        {
-          label: "custom-smtp",
-          host: MAIL_HOST,
-          port: MAIL_PORT,
-          secure: parseBoolean(MAIL_SECURE, MAIL_PORT === 465),
-          requireTLS: parseBoolean(MAIL_REQUIRE_TLS, MAIL_PORT === 587),
-        },
-      ]
-    : [];
+    console.error("[MAILER_INIT_ERROR]", {
+      errorCode: configResult.errorCode,
+      message: configResult.message,
+      invalidFields: configResult.invalidFields,
+    });
 
-const MAIL_TRANSPORT_OPTIONS =
-  CUSTOM_MAIL_TRANSPORT_OPTIONS.length > 0
-    ? CUSTOM_MAIL_TRANSPORT_OPTIONS
-    : DEFAULT_GMAIL_TRANSPORT_OPTIONS;
-
-export async function sendOtpMail(params: {
-  to: string;
-  otp: string;
-  purpose: "signup" | "forgot_password";
-}): Promise<OtpMailResult> {
-  if (!MAIL_USER || !MAIL_PASS) {
-    console.error("[MAILER_DISABLED] OTP mail not sent because mail config is missing");
     return {
       success: false,
-      error:
-        "Unable to send OTP email because the server mail configuration is missing. Please check Railway mail settings.",
+      errorCode: configResult.errorCode,
+      message: configResult.message,
+      transportLabel: "disabled",
     };
   }
 
+  const nextConfig = configResult.config;
+  const nextConfigKey = getConfigKey(nextConfig);
+
+  if (cachedTransporter && cachedConfigKey === nextConfigKey && cachedConfig) {
+    return {
+      success: true,
+      transporter: cachedTransporter,
+      config: cachedConfig,
+    };
+  }
+
+  cachedTransporter = createReusableTransporter(nextConfig);
+  cachedConfig = nextConfig;
+  cachedConfigKey = nextConfigKey;
+  verifyPromise = null;
+  lastVerifiedAt = null;
+  mailerState = "ready";
+
+  console.log("[MAILER] SMTP transporter created", {
+    transport: nextConfig.transportLabel,
+    host: nextConfig.host,
+    port: nextConfig.port,
+    secure: nextConfig.secure,
+    requireTLS: nextConfig.requireTLS,
+    authMethod: nextConfig.authMethod || "default",
+    user: maskEmail(nextConfig.user),
+    from: `"${nextConfig.fromName}" <${nextConfig.fromEmail}>`,
+  });
+
+  if ((process.env.MAIL_PASS || "") !== nextConfig.pass) {
+    console.warn("[MAILER] Normalized MAIL_PASS by removing whitespace");
+  }
+
+  return {
+    success: true,
+    transporter: cachedTransporter,
+    config: nextConfig,
+  };
+}
+
+function maybeVerifyMailer(force = false) {
+  const mailer = ensureMailer();
+  if (mailer.success === false) {
+    return;
+  }
+
+  const verificationStillFresh =
+    !force &&
+    mailerState === "verify_ok" &&
+    lastVerifiedAt !== null &&
+    Date.now() - lastVerifiedAt < MAIL_VERIFY_CACHE_MS;
+
+  if (verificationStillFresh || verifyPromise) {
+    return;
+  }
+
+  verifyPromise = mailer.transporter
+    .verify()
+    .then(() => {
+      mailerState = "verify_ok";
+      lastVerifiedAt = Date.now();
+      console.log("[MAILER] SMTP verification succeeded", {
+        transport: mailer.config.transportLabel,
+      });
+    })
+    .catch((error) => {
+      const failure = getMailerFailureDetails(error);
+      mailerState = "verify_failed";
+      lastVerifiedAt = Date.now();
+      console.error("[MAILER_VERIFY_ERROR]", {
+        errorCode: failure.errorCode,
+        transport: mailer.config.transportLabel,
+        ...failure.metadata,
+      });
+    })
+    .finally(() => {
+      verifyPromise = null;
+    });
+}
+
+function buildOtpMailContent(purpose: MailPurpose, otp: string) {
   const subject =
-    params.purpose === "signup"
+    purpose === "signup"
       ? "UniSphere Signup OTP"
       : "UniSphere Password Reset OTP";
 
   const actionText =
-    params.purpose === "signup"
+    purpose === "signup"
       ? "complete your UniSphere signup"
       : "reset your UniSphere password";
 
@@ -234,7 +411,7 @@ export async function sendOtpMail(params: {
 
         <div style="margin: 24px 0; text-align: center;">
           <div style="display: inline-block; font-size: 32px; font-weight: 800; letter-spacing: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #ffffff; padding: 16px 24px; border-radius: 16px;">
-            ${params.otp}
+            ${otp}
           </div>
         </div>
 
@@ -248,56 +425,92 @@ export async function sendOtpMail(params: {
     </div>
   `;
 
-  for (let index = 0; index < MAIL_TRANSPORT_OPTIONS.length; index += 1) {
-    const option = MAIL_TRANSPORT_OPTIONS[index];
-    const transporter = createTransporter(option);
+  return { subject, html };
+}
 
-    if (!transporter) {
-      break;
-    }
+export function initializeMailer(): MailerInitResult {
+  const mailer = ensureMailer();
 
-    try {
-      const info = await withTimeout(
-        transporter.sendMail({
-          from: `"${MAIL_FROM_NAME}" <${MAIL_USER}>`,
-          to: params.to,
-          subject,
-          html,
-        }),
-        MAIL_SEND_TIMEOUT_MS,
-        `OTP mail send via ${option.label}`
-      );
-
-      console.log("[MAILER] OTP mail sent:", {
-        messageId: info.messageId,
-        transport: option.label,
-      });
-
-      return { success: true, messageId: info.messageId };
-    } catch (error) {
-      const failure = getMailerFailureDetails(error);
-      console.error(failure.logMessage, {
-        ...failure.metadata,
-        transport: option.label,
-      });
-
-      const hasNextOption = index < MAIL_TRANSPORT_OPTIONS.length - 1;
-      if (!hasNextOption || !isConnectionFailure(error)) {
-        return {
-          success: false,
-          error: failure.publicMessage,
-        };
-      }
-
-      console.warn("[MAILER] Retrying OTP mail with alternate SMTP transport", {
-        fromTransport: option.label,
-        toTransport: MAIL_TRANSPORT_OPTIONS[index + 1].label,
-      });
-    }
+  if (mailer.success === false) {
+    return {
+      success: false,
+      errorCode: mailer.errorCode,
+      message: mailer.message,
+      transportLabel: "disabled",
+    };
   }
 
+  maybeVerifyMailer(true);
+
   return {
-    success: false,
-    error: "Unable to send OTP email right now. Please try again later.",
+    success: true,
+    errorCode: null,
+    message: "Mailer initialized.",
+    transportLabel: mailer.config.transportLabel,
   };
+}
+
+export async function sendOtpMail(params: {
+  to: string;
+  otp: string;
+  purpose: MailPurpose;
+}): Promise<MailSendResult> {
+  const mailer = ensureMailer();
+
+  if (mailer.success === false) {
+    return {
+      success: false,
+      errorCode: mailer.errorCode,
+      message: mailer.message,
+      transportLabel: "disabled",
+    };
+  }
+
+  maybeVerifyMailer();
+
+  const content = buildOtpMailContent(params.purpose, params.otp);
+
+  try {
+    const info = await withTimeout(
+      mailer.transporter.sendMail({
+        from: `"${mailer.config.fromName}" <${mailer.config.fromEmail}>`,
+        to: params.to,
+        subject: content.subject,
+        html: content.html,
+      }),
+      MAIL_SEND_TIMEOUT_MS,
+      `OTP mail send via ${mailer.config.transportLabel}`
+    );
+
+    console.log("[MAILER] sendMail succeeded", {
+      transport: mailer.config.transportLabel,
+      messageId: info.messageId,
+      accepted: info.accepted?.length || 0,
+      rejected: info.rejected?.length || 0,
+      response: info.response || null,
+    });
+
+    return {
+      success: true,
+      errorCode: null,
+      message: "OTP email sent successfully.",
+      transportLabel: mailer.config.transportLabel,
+      messageId: info.messageId,
+    };
+  } catch (error) {
+    const failure = getMailerFailureDetails(error);
+
+    console.error("[MAILER_SEND_ERROR]", {
+      errorCode: failure.errorCode,
+      transport: mailer.config.transportLabel,
+      ...failure.metadata,
+    });
+
+    return {
+      success: false,
+      errorCode: failure.errorCode,
+      message: failure.publicMessage,
+      transportLabel: mailer.config.transportLabel,
+    };
+  }
 }
