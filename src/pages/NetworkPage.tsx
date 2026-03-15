@@ -85,11 +85,6 @@ type ViewProfile = {
   connectionsCount?: number;
 };
 
-type MessageTarget = {
-  id: string;
-  name: string;
-};
-
 function normalizeSocialUrl(label: string, value: string): string | null {
   const raw = value.trim();
   if (!raw) return null;
@@ -385,14 +380,12 @@ function ConnectionCard({
   expanded,
   onToggle,
   onViewProfile,
-  onMessage,
   onInvalidLink,
 }: {
   conn: Connection;
   expanded: boolean;
   onToggle: () => void;
   onViewProfile: () => void;
-  onMessage: () => void;
   onInvalidLink: (message: string) => void;
 }) {
   const hasSocials = conn.instagram || conn.linkedin || conn.github || conn.portfolio;
@@ -481,9 +474,6 @@ function ConnectionCard({
             </div>
           )}
           <div className="flex gap-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-            <Button variant="primary" size="sm" icon={<MessageSquare size={12} />} className="flex-1" onClick={onMessage}>
-              Message
-            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -596,7 +586,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
   const [lookupModal, setLookupModal] = useState(false);
   const [scannerModal, setScannerModal] = useState(false);
   const [profileModal, setProfileModal] = useState(false);
-  const [messageModal, setMessageModal] = useState(false);
 
   const [lookupCode, setLookupCode] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -605,7 +594,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
 
   const [selectedProfile, setSelectedProfile] = useState<ViewProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [messageTarget, setMessageTarget] = useState<MessageTarget | null>(null);
 
   const [scannerError, setScannerError] = useState('');
   const [scannerStatus, setScannerStatus] = useState('Starting camera...');
@@ -649,16 +637,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
     setProfileModal(false);
     setSelectedProfile(null);
     setProfileLoading(false);
-  };
-
-  const closeMessageModal = () => {
-    setMessageModal(false);
-    setMessageTarget(null);
-  };
-
-  const openMessagePlaceholder = (target: MessageTarget) => {
-    setMessageTarget(target);
-    setMessageModal(true);
   };
 
   const loadNetworkData = async () => {
@@ -1346,7 +1324,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
                   expanded={expanded === conn.id}
                   onToggle={() => setExpanded(expanded === conn.id ? null : conn.id)}
                   onViewProfile={() => handleOpenConnectionProfile(conn)}
-                  onMessage={() => openMessagePlaceholder({ id: conn.id, name: conn.name })}
                   onInvalidLink={(message) => showToast('error', message)}
                 />
               ))
@@ -1773,28 +1750,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
             )}
 
             <div className="flex gap-3">
-              <Button
-                variant="primary"
-                size="md"
-                icon={<MessageSquare size={13} />}
-                className="flex-1"
-                disabled={selectedProfile.relationshipStatus !== 'connected'}
-                onClick={() =>
-                  openMessagePlaceholder({
-                    id: selectedProfile.id,
-                    name: selectedProfile.name,
-                  })
-                }
-              >
-                {selectedProfile.relationshipStatus === 'connected'
-                  ? 'Message'
-                  : selectedProfile.relationshipStatus === 'request_sent'
-                  ? 'Request Sent'
-                  : selectedProfile.relationshipStatus === 'you'
-                  ? 'You'
-                  : 'Not Connected'}
-              </Button>
-
               <Button variant="secondary" size="md" icon={<X size={13} />} className="flex-1" onClick={closeProfileModal}>
                 Close
               </Button>
@@ -1808,63 +1763,6 @@ export default function NetworkPage({ onOpenNotifications }: { onOpenNotificatio
         )}
       </InlineModal>
 
-      <InlineModal isOpen={messageModal} onClose={closeMessageModal} title="Direct Messages">
-        <div className="flex flex-col gap-4 py-2">
-          <div
-            className="rounded-3xl p-5"
-            style={{
-              background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.08))',
-              border: '1px solid rgba(99,102,241,0.18)',
-            }}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                style={{
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                }}
-              >
-                <MessageSquare size={20} className="text-primary-300" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[16px] font-extrabold text-white tracking-tight">
-                  Messaging is coming soon
-                </p>
-                <p className="text-[12px] text-white/55 leading-relaxed mt-1">
-                  {messageTarget
-                    ? `You’ll be able to chat directly with ${messageTarget.name} here once the messaging module is built.`
-                    : 'You’ll be able to chat directly with your connections here once the messaging module is built.'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div
-            className="rounded-3xl p-4"
-            style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%)',
-              border: '1px solid rgba(255,255,255,0.09)',
-              backdropFilter: 'blur(20px)',
-            }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-1 h-4 rounded-full" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }} />
-              <span className="text-sm font-bold text-white tracking-tight">Planned first version</span>
-            </div>
-            <div className="text-[12px] text-white/60 leading-6">
-              <div>• one-to-one chat between accepted connections</div>
-              <div>• recent conversations list</div>
-              <div>• unread indicators</div>
-              <div>• simple text messaging first</div>
-            </div>
-          </div>
-
-          <Button variant="primary" size="md" icon={<Check size={13} />} fullWidth onClick={closeMessageModal}>
-            Got it
-          </Button>
-        </div>
-      </InlineModal>
     </>
   );
 }

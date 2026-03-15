@@ -2,10 +2,15 @@ import { Response } from "express";
 import { AuthRequest } from "../middleware/authMiddleware";
 import {
   getNotificationsForUser,
+  getNotificationById,
   markNotificationRead,
   markAllNotificationsRead,
   respondToConnectionNotification,
 } from "../services/notificationService";
+import {
+  acceptConnectionRequest,
+  rejectConnectionRequest,
+} from "../services/networkService";
 
 export const listNotifications = async (req: AuthRequest, res: Response) => {
   if (!req.user?.userId) {
@@ -66,6 +71,29 @@ export const respondToConnectionRequestNotification = async (
 
   if (action !== "accepted" && action !== "declined") {
     return res.status(400).json({ message: "Invalid action" });
+  }
+
+  const notification = await getNotificationById(req.user.userId, id);
+
+  if (!notification) {
+    return res.status(404).json({ message: "Notification not found" });
+  }
+
+  if (notification.type !== "connection_request") {
+    return res.status(400).json({ message: "This notification cannot be responded to" });
+  }
+
+  if (notification.actionState && notification.actionState !== "pending") {
+    return res.status(400).json({ message: "Connection request already handled" });
+  }
+
+  const result =
+    action === "accepted"
+      ? await acceptConnectionRequest(req.user.userId, notification.actorId)
+      : await rejectConnectionRequest(req.user.userId, notification.actorId);
+
+  if (result.error) {
+    return res.status(400).json({ message: result.error });
   }
 
   await respondToConnectionNotification(req.user.userId, id, action);

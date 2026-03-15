@@ -1,3 +1,4 @@
+import type { Notification as PrismaNotification } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 export type NotificationType =
@@ -27,6 +28,36 @@ export interface NotificationPayload {
   };
 }
 
+function formatNotification(record: PrismaNotification) {
+  return {
+    id: record.id,
+    type: record.type as NotificationType,
+    read: record.read,
+    timestamp: record.timestamp,
+    timestampMs: Number(record.timestampMs),
+    actor: {
+      name: record.actorName,
+      role: record.actorRole || undefined,
+    },
+    title: record.message,
+    message: record.message,
+    meta:
+      record.postTitle || record.postId || record.type === "connection_request"
+        ? {
+            postTitle: record.postTitle || undefined,
+            connectionId:
+              record.type === "connection_request" ? record.actorId : undefined,
+          }
+        : undefined,
+    actionState:
+      record.actionState === "pending" ||
+      record.actionState === "accepted" ||
+      record.actionState === "declined"
+        ? record.actionState
+        : undefined,
+  };
+}
+
 export async function createNotification(notification: NotificationPayload) {
   const now = Date.now();
 
@@ -49,10 +80,21 @@ export async function createNotification(notification: NotificationPayload) {
 }
 
 export async function getNotificationsForUser(userId: string) {
-  return prisma.notification.findMany({
+  const rows = await prisma.notification.findMany({
     where: { userId },
     orderBy: {
       timestampMs: "desc",
+    },
+  });
+
+  return rows.map(formatNotification);
+}
+
+export async function getNotificationById(userId: string, id: number) {
+  return prisma.notification.findFirst({
+    where: {
+      id,
+      userId,
     },
   });
 }
